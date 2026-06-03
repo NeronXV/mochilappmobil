@@ -78,4 +78,27 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
             repository.updateBookingStatus(bookingId, "PAID")
         }
     }
+
+    suspend fun createPaymentIntent(
+        bookingId: String,
+        amount: Double,
+        currency: String = "mxn",
+        serviceId: String,
+        ownerEmail: String,
+        travelerEmail: String,
+        promoCode: String = "",
+        discountAmount: Double = 0.0
+    ): Map<String, Any>? {
+        val data = mapOf(
+            "bookingId" to bookingId,
+            "amount" to (amount * 100).toInt(), // Cents
+            "currency" to currency,
+            "serviceId" to serviceId,
+            "ownerEmail" to ownerEmail,
+            "travelerEmail" to travelerEmail,
+            "promoCode" to promoCode,
+            "discountAmount" to discountAmount
+        )
+        return repository.createPaymentIntent(data)
+    }
 }

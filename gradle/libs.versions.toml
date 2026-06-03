@@ -47,8 +47,12 @@ datastorePreferences = "1.1.7"
 generativeai = "0.9.0"
 material = "1.4.0"
 firebaseBom = "33.9.0"
+stripeAndroid = "21.6.0"
+firebaseFunctions = "21.1.0"
 
 [libraries]
+stripe-android = { group = "com.stripe", name = "stripe-android", version.ref = "stripeAndroid" }
+firebase-functions = { group = "com.google.firebase", name = "firebase-functions-ktx", version.ref = "firebaseFunctions" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }

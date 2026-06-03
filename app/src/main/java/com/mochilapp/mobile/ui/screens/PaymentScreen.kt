@@ -18,8 +18,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import com.mochilapp.mobile.ui.viewmodels.BookingViewModel
 import kotlinx.coroutines.delay
+import com.stripe.android.PaymentConfiguration
+import com.stripe.android.paymentsheet.PaymentSheet
+import com.stripe.android.paymentsheet.rememberPaymentSheet
+import com.mochilapp.mobile.BuildConfig
 
 @Composable
 fun PaymentScreen(
@@ -29,9 +35,32 @@ fun PaymentScreen(
 ) {
     var isProcessing by remember { mutableStateOf(false) }
     var isSuccess by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
     val myBookings by viewModel.myBookings.collectAsState()
     val currentBooking = myBookings.find { it.id == bookingId }
     val scrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
+
+    val currentContext = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(Unit) {
+        PaymentConfiguration.init(currentContext, BuildConfig.STRIPE_PUBLISHABLE_KEY)
+    }
+
+    val paymentSheet = rememberPaymentSheet { result ->
+        isProcessing = false
+        when (result) {
+            is com.stripe.android.paymentsheet.PaymentSheetResult.Completed -> {
+                viewModel.confirmPayment(bookingId)
+                isSuccess = true
+            }
+            is com.stripe.android.paymentsheet.PaymentSheetResult.Canceled -> {
+                errorMessage = "Pago cancelado por el usuario."
+            }
+            is com.stripe.android.paymentsheet.PaymentSheetResult.Failed -> {
+                errorMessage = "Error en el pago: ${result.error.localizedMessage}"
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -137,20 +166,46 @@ fun PaymentScreen(
             
             Button(
                 onClick = {
-                    isProcessing = true
+                    if (currentBooking != null) {
+                        isProcessing = true
+                        errorMessage = null
+                        scope.launch {
+                            val result = viewModel.createPaymentIntent(
+                                bookingId = bookingId,
+                                amount = currentBooking.totalPrice,
+                                serviceId = currentBooking.serviceId,
+                                ownerEmail = currentBooking.ownerEmail,
+                                travelerEmail = currentBooking.travelerEmail,
+                                promoCode = currentBooking.promoCode,
+                                discountAmount = currentBooking.discountAmount
+                            )
+                            val clientSecret = result?.get("clientSecret") as? String
+                            if (clientSecret != null) {
+                                paymentSheet.presentWithPaymentIntent(clientSecret)
+                            } else {
+                                isProcessing = false
+                                errorMessage = "No se pudo conectar con el servidor de pagos."
+                            }
+                        }
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6772E5)),
-                enabled = !isProcessing
+                enabled = !isProcessing && currentBooking != null
             ) {
                 if (isProcessing) {
                     CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                 } else {
                     Text("Pagar $${currentBooking?.totalPrice ?: ""}", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 }
+            }
+            
+            errorMessage?.let {
+                Spacer(Modifier.height(16.dp))
+                Text(it, color = Color.Red, style = MaterialTheme.typography.bodySmall)
             }
         } else {
             // Digital Ticket Design
@@ -237,7 +292,7 @@ fun PaymentScreen(
         }
     }
 
-    if (isProcessing) {
+    if (isProcessing && currentBooking == null) { // Fallback only for older logic
         LaunchedEffect(Unit) {
             delay(2500)
             viewModel.confirmPayment(bookingId)

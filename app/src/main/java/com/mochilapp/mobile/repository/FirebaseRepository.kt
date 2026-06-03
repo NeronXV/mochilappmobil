@@ -5,6 +5,8 @@ import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.functions.HttpsCallableResult
 import com.google.firebase.storage.FirebaseStorage
 import com.mochilapp.mobile.data.*
 import kotlinx.coroutines.channels.awaitClose
@@ -17,6 +19,7 @@ class FirebaseRepository {
     private val auth = FirebaseAuth.getInstance()
     private val firestore = FirebaseFirestore.getInstance()
     private val storage = FirebaseStorage.getInstance()
+    private val functions = FirebaseFunctions.getInstance()
 
     companion object {
         private const val TAG = "FirebaseRepository"
@@ -268,6 +271,22 @@ class FirebaseRepository {
             firestore.collection("promos").add(promo).await()
         } catch (e: Exception) {
             Log.e(TAG, "Error adding promo", e)
+        }
+    }
+
+    // --- Stripe Payments ---
+    suspend fun createPaymentIntent(data: Map<String, Any?>): Map<String, Any>? {
+        return try {
+            val result = functions
+                .getHttpsCallable("createPaymentIntent")
+                .call(data)
+                .await()
+            
+            @Suppress("UNCHECKED_CAST")
+            result.getData() as Map<String, Any>?
+        } catch (e: Exception) {
+            Log.e(TAG, "Error calling createPaymentIntent", e)
+            null
         }
     }
 
