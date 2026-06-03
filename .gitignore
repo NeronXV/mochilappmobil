@@ -1,0 +1,47 @@
+*.iml
+.gradle
+.gradle/
+local.properties
+/local.properties
+
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+
+.DS_Store
+/build
+build/
+*/build/
+
+/captures
+.externalNativeBuild
+.cxx
+
+# Logs
+*.log
+
+# Keystores / llaves privadas
+*.jks
+*.keystore
+
+# Secretos / cuentas de servicio
+.env
+.env.local
+serviceAccountKey.json
+firebase-adminsdk*.json
+.agent/
+input_images/
+google-services.json
+*.jks
+*.keystore
+*.log
+.env
+.env.local
+serviceAccountKey.json
+firebase-adminsdk*.json
+build/
+*/build/
+.gradle/

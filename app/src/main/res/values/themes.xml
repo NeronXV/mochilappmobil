@@ -1,0 +1,4 @@
+<resources>
+
+    <style name="Theme.Mochilapp" parent="Theme.MaterialComponents.Light" />
+</resources>
