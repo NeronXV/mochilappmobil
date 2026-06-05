@@ -192,7 +192,21 @@ fun MochilappApp(currentLanguage: AppLanguage, onLanguageChange: (AppLanguage) -
                             backStack.clear()
                             backStack.add(Destination.Login)
                         }
-                    }
+                    },
+                    onProfileClick = { backStack.add(Destination.UserProfile) },
+                    onBookingClick = { id -> backStack.add(Destination.BookingDetailCompany(id)) }
+                )
+            }
+            entry<Destination.BookingDetailCompany> { key ->
+                val bookingViewModel: BookingViewModel = viewModel(
+                    key = "booking_$userUid",
+                    factory = ViewModelFactory(repository = repository, userEmail = userEmail)
+                )
+                BookingDetailCompanyScreen(
+                    bookingId = key.bookingId,
+                    bookingViewModel = bookingViewModel,
+                    userUid = userUid,
+                    onBack = { backStack.removeAt(backStack.size - 1) }
                 )
             }
             entry<Destination.AddService> {
@@ -305,6 +319,19 @@ fun MochilappApp(currentLanguage: AppLanguage, onLanguageChange: (AppLanguage) -
                 )
                 BookingHistoryScreen(
                     viewModel = bookingViewModel,
+                    onBookingClick = { id -> backStack.add(Destination.BookingDetail(id)) },
+                    onBack = { backStack.removeAt(backStack.size - 1) }
+                )
+            }
+            entry<Destination.BookingDetail> { key ->
+                val bookingViewModel: BookingViewModel = viewModel(
+                    key = "booking_$userUid",
+                    factory = ViewModelFactory(repository = repository, userEmail = userEmail)
+                )
+                BookingDetailScreen(
+                    bookingId = key.bookingId,
+                    bookingViewModel = bookingViewModel,
+                    marketplaceViewModel = marketplaceViewModel,
                     onBack = { backStack.removeAt(backStack.size - 1) }
                 )
             }

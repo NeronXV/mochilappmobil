@@ -79,6 +79,23 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
         }
     }
 
+    fun updateStatus(bookingId: String, status: String, userUid: String) {
+        viewModelScope.launch {
+            val updateData = mutableMapOf<String, Any>(
+                "status" to status
+            )
+            val now = System.currentTimeMillis()
+            if (status == "CHECKED_IN") {
+                updateData["checkedInAt"] = now
+                updateData["checkedInBy"] = userUid
+            } else if (status == "COMPLETED") {
+                updateData["completedAt"] = now
+                updateData["completedBy"] = userUid
+            }
+            repository.updateBookingFields(bookingId, updateData)
+        }
+    }
+
     suspend fun createPaymentIntent(
         bookingId: String,
         amount: Double,

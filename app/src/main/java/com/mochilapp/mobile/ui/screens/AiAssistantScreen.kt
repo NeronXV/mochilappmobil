@@ -35,6 +35,7 @@ fun AiAssistantScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+    val currentLanguage = com.mochilapp.mobile.ui.theme.LocalAppLanguage.current.code
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
@@ -113,13 +114,14 @@ fun AiAssistantScreen(
                             focusedContainerColor = Color(0xFFF1F3F5),
                             unfocusedContainerColor = Color(0xFFF1F3F5)
                         ),
-                        maxLines = 4
+                        maxLines = 4,
+                        readOnly = isLoading
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     IconButton(
                         onClick = {
                             if (inputText.isNotBlank() && !isLoading) {
-                                viewModel.sendMessage(inputText)
+                                viewModel.sendMessage(inputText, currentLanguage)
                                 inputText = ""
                             }
                         },

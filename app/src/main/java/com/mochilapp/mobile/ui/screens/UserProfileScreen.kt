@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.Image
@@ -215,14 +216,14 @@ fun UserProfileScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
-                    ProfileStatItem("12", "Posts")
+                    ProfileStatItem("0", "Posts")
                     if (userProfile?.role == "TRAVELER") {
                         val points = userProfile?.mochiPoints ?: 0
                         ProfileStatItem(points.toString(), "MochiPuntos")
                         ProfileStatItem(PassportUtils.getLevelFromPoints(points), "Nivel")
                     } else {
-                        ProfileStatItem("256", "Seguidores")
-                        ProfileStatItem("128", "Siguiendo")
+                        ProfileStatItem("--", t("coming_soon"))
+                        ProfileStatItem("--", t("coming_soon"))
                     }
                 }
 
@@ -302,41 +303,29 @@ fun UserProfileScreen(
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onBackground
                 )
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Message display
+                
+                // Message display (Success/Error)
                 message?.let {
                     Text(
                         text = it,
                         color = if (it.contains("Error")) MaterialTheme.colorScheme.error else brandColor,
                         fontSize = 12.sp,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                        modifier = Modifier.padding(top = 8.dp)
                     )
                 }
 
-                // Mock Grid for adventures
-                val mockImages = listOf(
-                    "https://picsum.photos/seed/1/300/300",
-                    "https://picsum.photos/seed/2/300/300",
-                    "https://picsum.photos/seed/3/300/300"
-                )
+                Spacer(modifier = Modifier.height(16.dp))
 
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.weight(1f)
+                Box(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    contentAlignment = Alignment.Center
                 ) {
-                    items(mockImages) { imageUrl ->
-                        AsyncImage(
-                            model = imageUrl,
-                            contentDescription = null,
-                            modifier = Modifier
-                                .aspectRatio(1f)
-                                .clip(RoundedCornerShape(8.dp)),
-                            contentScale = ContentScale.Crop
-                        )
-                    }
+                    Text(
+                        text = t("no_adventures"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
 

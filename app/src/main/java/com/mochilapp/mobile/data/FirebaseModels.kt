@@ -96,7 +96,12 @@ data class BookingFirestore(
     val promoCode: String = "",
     val discountPercent: Int = 0,
     val discountAmount: Double = 0.0,
-    val originalTotal: Double = 0.0
+    val originalTotal: Double = 0.0,
+    val ticketCode: String = "",
+    val checkedInAt: Long = 0L,
+    val checkedInBy: String = "",
+    val completedAt: Long = 0L,
+    val completedBy: String = ""
 )
 
 data class PostFirestore(

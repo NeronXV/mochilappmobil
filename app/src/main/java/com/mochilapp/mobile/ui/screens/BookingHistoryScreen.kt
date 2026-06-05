@@ -26,6 +26,7 @@ import com.mochilapp.mobile.ui.viewmodels.BookingViewModel
 @Composable
 fun BookingHistoryScreen(
     viewModel: BookingViewModel,
+    onBookingClick: (String) -> Unit,
     onBack: () -> Unit
 ) {
     val bookings by viewModel.myBookings.collectAsState()
@@ -70,7 +71,7 @@ fun BookingHistoryScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 items(bookings) { booking ->
-                    BookingCard(booking)
+                    BookingCard(booking, onClick = { onBookingClick(booking.id) })
                 }
             }
         }
@@ -78,8 +79,9 @@ fun BookingHistoryScreen(
 }
 
 @Composable
-fun BookingCard(booking: BookingFirestore) {
+fun BookingCard(booking: BookingFirestore, onClick: () -> Unit) {
     Card(
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),

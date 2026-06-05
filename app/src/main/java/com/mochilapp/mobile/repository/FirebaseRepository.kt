@@ -167,6 +167,14 @@ class FirebaseRepository {
         }
     }
 
+    suspend fun updateBookingFields(id: String, fields: Map<String, Any>) {
+        try {
+            firestore.collection("bookings").document(id).update(fields).await()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating booking fields", e)
+        }
+    }
+
     fun getBookingsByServiceAndDate(serviceId: String, date: String): Flow<List<BookingFirestore>> = callbackFlow {
         val subscription = firestore.collection("bookings")
             .whereEqualTo("serviceId", serviceId)

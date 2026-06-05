@@ -59,6 +59,7 @@ object Translations {
         "mochi_thinking" to mapOf("es" to "Mochi está pensando...", "en" to "Mochi is thinking...", "fr" to "Mochi réfléchit..."),
         "create_post" to mapOf("es" to "Crear Post", "en" to "Create Post", "fr" to "Créer un post"),
         "add_service" to mapOf("es" to "Agregar Servicio", "en" to "Add Service", "fr" to "Ajouter un service"),
+        "ai_maintenance_msg" to mapOf("es" to "Estamos ajustando los últimos detalles de MochiBot. ¡Vuelve pronto!", "en" to "We're fine-tuning MochiBot's final details. Come back soon!", "fr" to "Nous peaufinons les derniers détails de MochiBot. Revenez bientôt !"),
         
         // Dashboards & Navigation
         "nav_panel" to mapOf("es" to "Panel", "en" to "Dashboard", "fr" to "Tableau"),
@@ -90,7 +91,32 @@ object Translations {
         "company_web_panel" to mapOf("es" to "Mi Panel Empresarial (Web)", "en" to "My Web Panel", "fr" to "Mon Panneau Web"),
         "company_no_bookings" to mapOf("es" to "Aún no tienes reservas.", "en" to "No bookings yet.", "fr" to "Pas encore de réservations."),
         "view_all" to mapOf("es" to "VER TODAS", "en" to "VIEW ALL", "fr" to "VOIR TOUT"),
-        "flash_promos_title" to mapOf("es" to "¡Ofertas Relámpago! ⚡", "en" to "Flash Deals! ⚡", "fr" to "Offres Flash ! ⚡")
+        "flash_promos_title" to mapOf("es" to "¡Ofertas Relámpago! ⚡", "en" to "Flash Deals! ⚡", "fr" to "Offres Flash ! ⚡"),
+        
+        "flash_promo_dialog_title" to mapOf("es" to "Lanzar Oferta Relámpago ⚡", "en" to "Launch Flash Deal ⚡", "fr" to "Lancer une offre flash ⚡"),
+        "flash_promo_dialog_desc" to mapOf("es" to "Esta oferta aparecerá instantáneamente en el feed de todos los viajeros.", "en" to "This deal will instantly appear in all travelers' feeds.", "fr" to "Cette offre apparaîtra instantanément dans le flux de tous les voyageurs."),
+        "flash_promo_msg_label" to mapOf("es" to "Mensaje (Ej: 2 lugares para hoy)", "en" to "Message (e.g. 2 spots left today)", "fr" to "Message (Ex: 2 places pour aujourd'hui)"),
+        "flash_promo_discount_label" to mapOf("es" to "Descuento (Ej: 50% u Oferta)", "en" to "Discount (e.g. 50% or Deal)", "fr" to "Remise (Ex: 50% ou Offre)"),
+        "send" to mapOf("es" to "Enviar", "en" to "Send", "fr" to "Envoyer"),
+        "no_adventures" to mapOf("es" to "Aún no tienes aventuras guardadas.", "en" to "You don't have any saved adventures yet.", "fr" to "Vous n'avez pas encore d'aventures enregistrées."),
+        "coming_soon" to mapOf("es" to "Próximamente", "en" to "Coming Soon", "fr" to "Prochainement"),
+        
+        "booking_details" to mapOf("es" to "Detalle de reserva", "en" to "Booking details", "fr" to "Détails de réservation"),
+        "qr_code" to mapOf("es" to "Código QR", "en" to "QR Code", "fr" to "Code QR"),
+        "how_to_get_there" to mapOf("es" to "Cómo llegar", "en" to "How to get there", "fr" to "Comment s'y rendre"),
+        "paid_status" to mapOf("es" to "Pagada", "en" to "Paid", "fr" to "Payée"),
+        "pending_status" to mapOf("es" to "Pendiente de pago", "en" to "Pending payment", "fr" to "En attente"),
+        "cancelled_status" to mapOf("es" to "Cancelada", "en" to "Cancelled", "fr" to "Annulée"),
+        "checked_in_status" to mapOf("es" to "Validada", "en" to "Checked-in", "fr" to "Validée"),
+        "completed_status" to mapOf("es" to "Ejecutada", "en" to "Completed", "fr" to "Terminée"),
+        "no_location_msg" to mapOf("es" to "No tenemos ubicación disponible para este servicio.", "en" to "No location available for this service.", "fr" to "Aucun emplacement disponible pour ce service."),
+        
+        "confirm_arrival" to mapOf("es" to "Confirmar llegada", "en" to "Confirm arrival", "fr" to "Confirmer l'arrivée"),
+        "manual_code_entry" to mapOf("es" to "Ingresar código manual", "en" to "Manual code entry", "fr" to "Saisie manuelle"),
+        "mark_completed" to mapOf("es" to "Marcar como ejecutado", "en" to "Mark as completed", "fr" to "Marquer comme terminé"),
+        "invalid_booking_msg" to mapOf("es" to "Esta reserva no pertenece a tu negocio o no está pagada.", "en" to "This booking doesn't belong to your business or isn't paid.", "fr" to "Cette réservation n'appartient pas à votre entreprise ou n'est pas payée."),
+        "booking_validated_success" to mapOf("es" to "Reserva validada correctamente", "en" to "Booking validated successfully", "fr" to "Réservation validée avec succès"),
+        "service_completed_success" to mapOf("es" to "Servicio marcado como ejecutado", "en" to "Service marked as completed", "fr" to "Service marqué comme terminé")
     )
 
     fun getString(key: String, lang: String): String {

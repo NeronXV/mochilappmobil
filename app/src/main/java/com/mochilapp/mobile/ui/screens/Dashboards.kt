@@ -76,17 +76,22 @@ fun TravelerDashboard(
                 )
                 Spacer(Modifier.height(24.dp))
                 
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.CloudUpload, contentDescription = null) },
-                    label = { Text("Subir Datos de Prueba") },
-                    selected = false,
-                    onClick = { 
-                        scope.launch { 
-                            viewModel.seedSampleData()
-                            drawerState.close()
+                /* 
+                // Botón de desarrollo oculto para MVP y Release
+                if (com.mochilapp.mobile.BuildConfig.DEBUG) {
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Default.CloudUpload, contentDescription = null) },
+                        label = { Text("Dev: Subir Datos de Prueba") },
+                        selected = false,
+                        onClick = { 
+                            scope.launch { 
+                                viewModel.seedSampleData()
+                                drawerState.close()
+                            }
                         }
-                    }
-                )
+                    )
+                }
+                */
 
                 NavigationDrawerItem(
                     icon = { Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null) },
@@ -825,7 +830,9 @@ fun CompanyDashboard(
     authViewModel: AuthViewModel,
     onAddService: () -> Unit,
     onAiClick: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onProfileClick: () -> Unit,
+    onBookingClick: (String) -> Unit
 ) {
     val services by viewModel.myServices.collectAsState()
     val bookings by viewModel.myBookings.collectAsState()
@@ -968,19 +975,19 @@ fun CompanyDashboard(
 
                                     AlertDialog(
                                         onDismissRequest = { showPromoDialog = false },
-                                        title = { Text("Lanzar Oferta Relámpago ⚡") },
+                                        title = { Text(t("flash_promo_dialog_title")) },
                                         text = {
                                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                                Text("Esta oferta aparecerá instantáneamente en el feed de todos los viajeros.", fontSize = 12.sp, color = Color.Gray)
+                                                Text(t("flash_promo_dialog_desc"), fontSize = 12.sp, color = Color.Gray)
                                                 OutlinedTextField(
                                                     value = promoText,
                                                     onValueChange = { promoText = it },
-                                                    label = { Text("Mensaje (Ej: 2 lugares para hoy a las 6pm)") }
+                                                    label = { Text(t("flash_promo_msg_label")) }
                                                 )
                                                 OutlinedTextField(
                                                     value = discountText,
                                                     onValueChange = { discountText = it },
-                                                    label = { Text("Descuento (Ej: 50% u Oferta)") }
+                                                    label = { Text(t("flash_promo_discount_label")) }
                                                 )
                                             }
                                         },
@@ -990,10 +997,10 @@ fun CompanyDashboard(
                                                     viewModel.sendFlashPromo(promoText, discountText, userProfile?.name ?: "Empresa")
                                                     showPromoDialog = false
                                                 }
-                                            }) { Text("Enviar") }
+                                            }) { Text(t("send")) }
                                         },
                                         dismissButton = {
-                                            TextButton(onClick = { showPromoDialog = false }) { Text("Cancelar") }
+                                            TextButton(onClick = { showPromoDialog = false }) { Text(t("cancel")) }
                                         }
                                     )
                                 }
@@ -1104,7 +1111,7 @@ fun CompanyDashboard(
                             }
                         } else {
                             items(bookings) { booking ->
-                                RealBookingListItem(booking)
+                                RealBookingListItem(booking, onClick = { onBookingClick(booking.id) })
                             }
                         }
                     }
@@ -1218,8 +1225,9 @@ fun CompanyStatCard(
 }
 
 @Composable
-fun RealBookingListItem(booking: com.mochilapp.mobile.data.BookingFirestore) {
+fun RealBookingListItem(booking: com.mochilapp.mobile.data.BookingFirestore, onClick: () -> Unit) {
     Card(
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(

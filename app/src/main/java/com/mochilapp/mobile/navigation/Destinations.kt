@@ -54,6 +54,12 @@ sealed interface Destination : NavKey {
     data object UserProfile : Destination
 
     @Serializable
+    data class BookingDetail(val bookingId: String) : Destination
+
+    @Serializable
+    data class BookingDetailCompany(val bookingId: String) : Destination
+
+    @Serializable
     data object Search : Destination
 
     @Serializable
