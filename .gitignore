@@ -45,3 +45,9 @@ firebase-adminsdk*.json
 build/
 */build/
 .gradle/
+
+# Release/build artifacts
+app/release/
+*.aab
+*.apk
+*.pem
