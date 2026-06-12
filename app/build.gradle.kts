@@ -21,8 +21,8 @@ android {
         applicationId = "com.mochilapp.mobile"
         minSdk = 24
         targetSdk = 37
-        versionCode = 5
-        versionName = "5.0"
+        versionCode = 6
+        versionName = "5.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
