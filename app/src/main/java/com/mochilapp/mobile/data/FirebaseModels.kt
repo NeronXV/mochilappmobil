@@ -18,6 +18,8 @@ data class UserFirestore(
     val phone: String = "",
     val whatsapp: String = "",
     val businessLocation: String = "",
+    val rfc: String = "",
+    val rnt: String = "",
     val businessVerified: Boolean = false,
     val status: String = "PENDING",
     val checkIn: String = "",

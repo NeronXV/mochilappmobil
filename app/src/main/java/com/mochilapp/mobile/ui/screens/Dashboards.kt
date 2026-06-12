@@ -939,14 +939,25 @@ fun CompanyDashboard(
                                         )
                                     )
                                     Spacer(Modifier.width(8.dp))
+                                    val isVerified = userProfile?.businessVerified == true
                                     Surface(
-                                        color = Color(0xFF2ECC71).copy(alpha = 0.2f),
+                                        color = if (isVerified) Color(0xFF2ECC71).copy(alpha = 0.2f) else Color(0xFFFDEBD0),
                                         shape = RoundedCornerShape(12.dp)
                                     ) {
                                         Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color(0xFF27AE60))
+                                            Icon(
+                                                if (isVerified) Icons.Default.CheckCircle else Icons.Default.Schedule,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(12.dp),
+                                                tint = if (isVerified) Color(0xFF27AE60) else Color(0xFFD68910)
+                                            )
                                             Spacer(Modifier.width(4.dp))
-                                            Text("VERIFICADO", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF27AE60))
+                                            Text(
+                                                if (isVerified) "VERIFICADO" else "EN REVISIÓN",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isVerified) Color(0xFF27AE60) else Color(0xFFD68910)
+                                            )
                                         }
                                     }
                                 }

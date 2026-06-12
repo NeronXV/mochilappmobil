@@ -45,6 +45,8 @@ fun RegistrationScreen(
     var phone by remember { mutableStateOf("") }
     var whatsapp by remember { mutableStateOf("") }
     var businessLocation by remember { mutableStateOf("") }
+    var rfc by remember { mutableStateOf("") }
+    var rnt by remember { mutableStateOf("") }
     var companyType by remember { mutableStateOf(CompanyType.HOTEL) }
     
     // Step Specific (Optional)
@@ -200,6 +202,39 @@ fun RegistrationScreen(
                     modifier = Modifier.fillMaxWidth().height(120.dp),
                     shape = RoundedCornerShape(12.dp)
                 )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Datos fiscales para la verificación de la empresa
+                Text(text = "Datos de verificación", fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Mochilapp valida cada empresa para dar confianza a los viajeros. Tu RFC es obligatorio; el RNT (Registro Nacional de Turismo) suma aún más credibilidad.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray,
+                    modifier = Modifier.align(Alignment.Start)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = rfc,
+                    onValueChange = { rfc = it.uppercase().take(13) },
+                    label = { Text("RFC (obligatorio)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    leadingIcon = { Icon(Icons.Default.Badge, contentDescription = null) },
+                    supportingText = { Text("12 o 13 caracteres", fontSize = 11.sp) }
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = rnt,
+                    onValueChange = { rnt = it.uppercase() },
+                    label = { Text("RNT (opcional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    leadingIcon = { Icon(Icons.Default.Verified, contentDescription = null) },
+                    supportingText = { Text("Registro Nacional de Turismo", fontSize = 11.sp) }
+                )
             } else if (currentStep == 2 && role == "COMPANY") {
                 // Step 2: Specialization
                 Text(text = "Especialización", fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
@@ -304,6 +339,8 @@ fun RegistrationScreen(
                                 error = "Completa todos los campos básicos"
                             } else if (currentStep == 1 && (businessName.isBlank() || businessLocation.isBlank())) {
                                 error = "El nombre y ubicación del negocio son obligatorios"
+                            } else if (currentStep == 1 && rfc.length !in 12..13) {
+                                error = "El RFC debe tener 12 o 13 caracteres"
                             } else {
                                 error = null
                                 currentStep++
@@ -321,6 +358,8 @@ fun RegistrationScreen(
                                 phone = phone,
                                 whatsapp = whatsapp.ifBlank { phone },
                                 businessLocation = businessLocation,
+                                rfc = rfc,
+                                rnt = rnt,
                                 checkIn = checkIn,
                                 checkOut = checkOut,
                                 meetingPoint = meetingPoint,
