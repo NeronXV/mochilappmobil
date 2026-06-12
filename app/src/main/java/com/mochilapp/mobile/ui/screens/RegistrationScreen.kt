@@ -100,7 +100,7 @@ fun RegistrationScreen(
                 Text(
                     text = "Paso ${currentStep + 1} de 3",
                     style = MaterialTheme.typography.labelMedium,
-                    color = Color(0xFF007BFF),
+                    color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(top = 8.dp)
                 )
             }
@@ -370,7 +370,7 @@ fun RegistrationScreen(
                     },
                     modifier = Modifier.weight(1f).height(56.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007BFF))
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
                     if (isLoading) {
                         CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
@@ -394,7 +394,7 @@ fun RegistrationScreen(
                 modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.3f)),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = Color(0xFF007BFF))
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
         }
     }

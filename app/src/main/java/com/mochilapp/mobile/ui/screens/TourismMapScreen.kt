@@ -214,7 +214,7 @@ fun TourismMapScreen(
                                 }
                                 IconButton(
                                     onClick = { onServiceClick(service.id) },
-                                    modifier = Modifier.clip(CircleShape).background(Color(0xFF007BFF))
+                                    modifier = Modifier.clip(CircleShape).background(MaterialTheme.colorScheme.primary)
                                 ) {
                                     Icon(Icons.Default.ChevronRight, contentDescription = "Ver", tint = Color.White)
                                 }

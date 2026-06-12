@@ -255,7 +255,7 @@ fun PaymentScreen(
                             style = MaterialTheme.typography.headlineSmall.copy(
                                 fontWeight = FontWeight.ExtraBold,
                                 letterSpacing = 2.sp,
-                                color = Color(0xFF007BFF)
+                                color = MaterialTheme.colorScheme.primary
                             )
                         )
                         Spacer(modifier = Modifier.height(8.dp))
@@ -270,7 +270,7 @@ fun PaymentScreen(
                 onClick = onPaymentSuccess,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007BFF))
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
                 Text("Ir a mis Reservas", fontWeight = FontWeight.Bold)
             }

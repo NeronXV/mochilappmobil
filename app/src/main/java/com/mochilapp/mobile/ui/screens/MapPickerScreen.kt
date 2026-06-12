@@ -60,7 +60,7 @@ fun MapPickerScreen(
                             onBack()
                         }
                     },
-                    containerColor = Color(0xFF007BFF),
+                    containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = Color.White,
                     shape = RoundedCornerShape(16.dp)
                 ) {
@@ -100,7 +100,7 @@ fun MapPickerScreen(
                 shadowElevation = 4.dp
             ) {
                 Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Place, contentDescription = null, tint = Color(0xFF007BFF))
+                    Icon(Icons.Default.Place, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(12.dp))
                     Text("Toca el mapa para marcar el punto del servicio", fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }

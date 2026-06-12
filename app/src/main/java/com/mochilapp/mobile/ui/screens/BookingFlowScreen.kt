@@ -127,11 +127,11 @@ fun BookingFlowScreen(
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { if (slots > 1) slots-- }) {
-                                Icon(Icons.Default.RemoveCircle, contentDescription = null, tint = Color(0xFF007BFF))
+                                Icon(Icons.Default.RemoveCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             }
                             Text(slots.toString(), fontWeight = FontWeight.Black, fontSize = 20.sp, modifier = Modifier.padding(horizontal = 8.dp))
                             IconButton(onClick = { slots++ }) {
-                                Icon(Icons.Default.AddCircle, contentDescription = null, tint = Color(0xFF007BFF))
+                                Icon(Icons.Default.AddCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
@@ -147,7 +147,7 @@ fun BookingFlowScreen(
                         Text(t("date"), fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.CalendarToday, contentDescription = null, tint = Color(0xFF007BFF), modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.CalendarToday, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(12.dp))
                             Text(selectedDateText, color = if (datePickerState.selectedDateMillis == null) Color.Gray else Color.Black)
                         }
@@ -171,7 +171,7 @@ fun BookingFlowScreen(
                                             onClick = { selectedTime = time },
                                             label = { Text(time) },
                                             colors = FilterChipDefaults.filterChipColors(
-                                                selectedContainerColor = Color(0xFF007BFF),
+                                                selectedContainerColor = MaterialTheme.colorScheme.primary,
                                                 selectedLabelColor = Color.White
                                             )
                                         )
@@ -234,7 +234,7 @@ fun BookingFlowScreen(
                             "$$totalPrice", 
                             style = MaterialTheme.typography.headlineMedium.copy(
                                 fontWeight = FontWeight.Black,
-                                color = if (discountAmount > 0) Color(0xFF2ECC71) else Color(0xFF007BFF)
+                                color = if (discountAmount > 0) Color(0xFF2ECC71) else MaterialTheme.colorScheme.primary
                             )
                         )
                     }
@@ -264,7 +264,7 @@ fun BookingFlowScreen(
                                  (service?.departureTimes?.isEmpty() == true || selectedTime != null),
                         modifier = Modifier.height(56.dp).padding(start = 16.dp),
                         shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007BFF))
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         Text(t("payment_continue"), fontWeight = FontWeight.Bold)
                     }

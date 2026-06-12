@@ -24,6 +24,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -180,7 +181,7 @@ fun LoginScreen(
                             Text(
                                 text = t("login"),
                                 fontWeight = FontWeight.Bold,
-                                color = if (isLoginSelected) Color(0xFF007BFF) else Color.Gray
+                                color = if (isLoginSelected) MaterialTheme.colorScheme.primary else Color.Gray
                             )
                         }
                     }
@@ -198,7 +199,7 @@ fun LoginScreen(
                             Text(
                                 text = t("register"),
                                 fontWeight = FontWeight.Bold,
-                                color = if (!isLoginSelected) Color(0xFF007BFF) else Color.Gray
+                                color = if (!isLoginSelected) MaterialTheme.colorScheme.primary else Color.Gray
                             )
                         }
                     }
@@ -221,7 +222,7 @@ fun LoginScreen(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = Color.White,
                         unfocusedContainerColor = Color.White,
-                        focusedBorderColor = Color(0xFF007BFF),
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
                         unfocusedBorderColor = Color(0xFFE9ECEF)
                     )
                 )
@@ -247,7 +248,7 @@ fun LoginScreen(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = Color.White,
                         unfocusedContainerColor = Color.White,
-                        focusedBorderColor = Color(0xFF007BFF),
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
                         unfocusedBorderColor = Color(0xFFE9ECEF)
                     )
                 )
@@ -268,7 +269,7 @@ fun LoginScreen(
                     },
                     modifier = Modifier.align(Alignment.End)
                 ) {
-                    Text(t("cancel"), color = Color(0xFF007BFF), fontSize = 13.sp, fontWeight = FontWeight.Bold) // Using 'cancel' for testing
+                    Text(t("cancel"), color = MaterialTheme.colorScheme.primary, fontSize = 13.sp, fontWeight = FontWeight.Bold) // Using 'cancel' for testing
                 }
             }
 
@@ -284,7 +285,7 @@ fun LoginScreen(
                     .height(60.dp)
                     .shadow(12.dp, RoundedCornerShape(18.dp)),
                 shape = RoundedCornerShape(18.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007BFF)),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 elevation = ButtonDefaults.buttonElevation(
                     defaultElevation = 8.dp,
                     pressedElevation = 2.dp
@@ -325,21 +326,34 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // Legal Text
+            // Legal Text (los enlaces abren el navegador)
+            val linkStyle = androidx.compose.ui.text.TextLinkStyles(
+                style = SpanStyle(
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    textDecoration = TextDecoration.Underline
+                )
+            )
             Text(
                 text = buildAnnotatedString {
                     append("Al continuar, aceptas nuestros ")
-                    pushStringAnnotation("terms", "https://...")
-                    withStyle(SpanStyle(color = Color.Black, fontWeight = FontWeight.Bold, textDecoration = TextDecoration.Underline)) {
+                    withLink(
+                        androidx.compose.ui.text.LinkAnnotation.Url(
+                            "https://mochilapp.web.app/terminos-de-servicio",
+                            linkStyle
+                        )
+                    ) {
                         append("Términos de Servicio")
                     }
-                    pop()
                     append(" y ")
-                    pushStringAnnotation("policy", "https://...")
-                    withStyle(SpanStyle(color = Color.Black, fontWeight = FontWeight.Bold, textDecoration = TextDecoration.Underline)) {
+                    withLink(
+                        androidx.compose.ui.text.LinkAnnotation.Url(
+                            "https://mochilapp.web.app/politica-de-privacidad",
+                            linkStyle
+                        )
+                    ) {
                         append("Política de Privacidad")
                     }
-                    pop()
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.Gray,

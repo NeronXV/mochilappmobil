@@ -47,7 +47,7 @@ fun LanguageSelectionScreen(
             modifier = Modifier
                 .size(300.dp)
                 .offset(x = (-100).dp, y = (-100).dp)
-                .background(Color(0xFF007BFF).copy(alpha = 0.05f), CircleShape)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.05f), CircleShape)
         )
 
         Column(
@@ -114,7 +114,7 @@ fun LanguageSelectionScreen(
                     .shadow(12.dp, RoundedCornerShape(18.dp)),
                 shape = RoundedCornerShape(18.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF007BFF)
+                    containerColor = MaterialTheme.colorScheme.primary
                 )
             ) {
                 Text(
@@ -137,7 +137,7 @@ data class LanguageItem(val name: String, val code: String, val flag: String, va
 
 @Composable
 fun LanguageCard(language: LanguageItem, isSelected: Boolean, onClick: () -> Unit) {
-    val borderColor = if (isSelected) Color(0xFF007BFF) else Color.Transparent
+    val borderColor = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent
     val backgroundColor = if (isSelected) Color.White else Color(0xFFF1F3F5)
     
     Surface(
@@ -171,7 +171,7 @@ fun LanguageCard(language: LanguageItem, isSelected: Boolean, onClick: () -> Uni
                 Text(
                     text = language.name,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = if (isSelected) Color(0xFF007BFF) else Color(0xFF1A1D1E)
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else Color(0xFF1A1D1E)
                 )
                 Text(
                     text = language.welcome,
@@ -184,7 +184,7 @@ fun LanguageCard(language: LanguageItem, isSelected: Boolean, onClick: () -> Uni
                 Icon(
                     Icons.Default.CheckCircle,
                     contentDescription = null,
-                    tint = Color(0xFF007BFF),
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(28.dp)
                 )
             }

@@ -150,7 +150,7 @@ fun PremiumChatBubble(message: ChatMessage) {
     val isUser = message.isUser
     val alignment = if (isUser) Alignment.End else Alignment.Start
     val bubbleBrush = if (isUser) {
-        Brush.linearGradient(listOf(Color(0xFF007BFF), Color(0xFF0056B3)))
+        Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, Color(0xFF0056B3)))
     } else {
         Brush.linearGradient(listOf(Color.White, Color.White))
     }

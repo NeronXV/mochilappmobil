@@ -332,7 +332,7 @@ fun FlashPromoCard(
                 )
                 Text(
                     text = "Ver oferta",
-                    color = Color(0xFF007BFF),
+                    color = MaterialTheme.colorScheme.primary,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -783,7 +783,7 @@ fun PremiumServiceCard(
                             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black)
                         )
                         Surface(
-                            color = Color(0xFF007BFF),
+                            color = MaterialTheme.colorScheme.primary,
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Text(

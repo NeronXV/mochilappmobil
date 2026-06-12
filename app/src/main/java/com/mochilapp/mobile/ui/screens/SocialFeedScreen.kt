@@ -245,7 +245,7 @@ fun PremiumPostItem(
                         Text(
                             text = post.authorName.take(1).uppercase(),
                             fontWeight = FontWeight.Black,
-                            color = Color(0xFF007BFF),
+                            color = MaterialTheme.colorScheme.primary,
                             fontSize = 16.sp
                         )
                     }
@@ -282,16 +282,16 @@ fun PremiumPostItem(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Explore, contentDescription = null, tint = Color(0xFF007BFF), modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.Explore, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(12.dp))
                             Text(
                                 "Ver experiencia vinculada", 
-                                color = Color(0xFF007BFF),
+                                color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
                             )
                             Spacer(Modifier.weight(1f))
-                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF007BFF), modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                         }
                     }
                 }

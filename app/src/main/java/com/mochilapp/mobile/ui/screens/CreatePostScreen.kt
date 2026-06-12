@@ -112,7 +112,7 @@ fun CreatePostScreen(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = Color.White,
                         unfocusedContainerColor = Color.White,
-                        focusedBorderColor = Color(0xFF007BFF),
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
                         unfocusedBorderColor = Color.Transparent
                     )
                 )
@@ -165,7 +165,7 @@ fun CreatePostScreen(
                         .padding(24.dp)
                         .height(56.dp),
                     shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007BFF)),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                     enabled = content.isNotBlank() && imageUri != null && !isLoading
                 ) {
                     if (isLoading) {

@@ -64,8 +64,9 @@ private val DarkColorScheme = darkColorScheme(
 @Composable
 fun MochilappTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    // Desactivado: el color dinámico de Android 12+ sustituía la paleta de
+    // marca (azul/verde) por colores del fondo de pantalla del usuario
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -81,7 +82,9 @@ fun MochilappTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.primary.toArgb()
+            // Barra de estado transparente: el contenido se dibuja de borde a
+            // borde y los iconos se adaptan al tema claro/oscuro
+            window.statusBarColor = android.graphics.Color.TRANSPARENT
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
         }
     }

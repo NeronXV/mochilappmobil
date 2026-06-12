@@ -132,7 +132,7 @@ fun AddServiceScreen(
                             label = { Text("¿Cómo se llama tu servicio?") },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
-                            leadingIcon = { Icon(Icons.Default.Title, contentDescription = null, tint = Color(0xFF007BFF)) }
+                            leadingIcon = { Icon(Icons.Default.Title, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
                         )
 
                         OutlinedTextField(
@@ -463,7 +463,7 @@ fun AddServiceScreen(
                         .padding(24.dp)
                         .height(56.dp),
                     shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007BFF)),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                     enabled = draft.name.isNotBlank() && draft.price.isNotBlank() && !isLoading
                 ) {
                     if (isLoading) {

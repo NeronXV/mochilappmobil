@@ -108,7 +108,7 @@ fun BookingCard(booking: BookingFirestore, onClick: () -> Unit) {
                     Text(
                         text = "Hora: ${booking.departureTime}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF007BFF),
+                        color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -134,7 +134,7 @@ fun BookingCard(booking: BookingFirestore, onClick: () -> Unit) {
                 Text(
                     text = "$${booking.totalPrice}",
                     fontWeight = FontWeight.Black,
-                    color = Color(0xFF007BFF),
+                    color = MaterialTheme.colorScheme.primary,
                     fontSize = 18.sp
                 )
                 Spacer(Modifier.height(8.dp))

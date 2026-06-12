@@ -164,7 +164,7 @@ fun BookingDetailScreen(
                                 style = MaterialTheme.typography.headlineSmall.copy(
                                     fontWeight = FontWeight.ExtraBold,
                                     letterSpacing = 2.sp,
-                                    color = Color(0xFF007BFF)
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             )
                             Spacer(Modifier.height(16.dp))
