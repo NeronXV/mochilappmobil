@@ -55,11 +55,6 @@ fun SearchScreen(
                         modifier = Modifier.weight(1f),
                         placeholder = { Text(t("search_placeholder")) },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                        trailingIcon = {
-                            IconButton(onClick = { /* Open filters */ }) {
-                                Icon(Icons.Default.FilterList, contentDescription = "Filtros")
-                            }
-                        },
                         shape = RoundedCornerShape(16.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = MaterialTheme.colorScheme.primary,

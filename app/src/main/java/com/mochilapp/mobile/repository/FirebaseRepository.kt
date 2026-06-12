@@ -121,6 +121,47 @@ class FirebaseRepository {
         }
     }
 
+    suspend fun updateService(id: String, service: ServiceFirestore, imageUri: Uri? = null) {
+        try {
+            var imageUrl = service.imageUrl
+            if (imageUri != null) {
+                imageUrl = uploadImage(imageUri, "services/${auth.currentUser?.uid}/${UUID.randomUUID()}")
+            }
+            // Solo campos editables: rating, reviewCount, ownerEmail e isRecommended
+            // están protegidos por las reglas de Firestore
+            val fields = mapOf(
+                "name" to service.name,
+                "description" to service.description,
+                "price" to service.price,
+                "type" to service.type,
+                "location" to service.location,
+                "imageUrl" to imageUrl,
+                "capacity" to service.capacity,
+                "departureTimes" to service.departureTimes,
+                "meetingPoint" to service.meetingPoint,
+                "checkIn" to service.checkIn,
+                "checkOut" to service.checkOut,
+                "amenities" to service.amenities,
+                "rules" to service.rules,
+                "routeName" to service.routeName,
+                "origin" to service.origin,
+                "destination" to service.destination,
+                "vehicleName" to service.vehicleName,
+                "driverName" to service.driverName,
+                "guideName" to service.guideName,
+                "businessHours" to service.businessHours,
+                "isOpen" to service.isOpen,
+                "address" to service.address,
+                "latitude" to service.latitude,
+                "longitude" to service.longitude
+            )
+            firestore.collection("services").document(id).update(fields).await()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating service", e)
+            throw e
+        }
+    }
+
     suspend fun updateServiceVisibility(id: String, isVisible: Boolean) {
         try {
             firestore.collection("services").document(id).update("isVisible", isVisible).await()
@@ -260,14 +301,53 @@ class FirebaseRepository {
 
     // --- Reviews ---
     suspend fun addReview(review: ReviewFirestore) {
-        // ... existente
+        try {
+            // El promedio (rating/reviewCount) lo recalcula la Cloud Function
+            // onReviewCreated: las reglas de Firestore impiden que un viajero
+            // modifique la reputación del servicio directamente.
+            firestore.collection("reviews").add(review).await()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error adding review", e)
+            throw e
+        }
+    }
+
+    fun getReviewsForService(serviceId: String): Flow<List<ReviewFirestore>> = callbackFlow {
+        val subscription = firestore.collection("reviews")
+            .whereEqualTo("serviceId", serviceId)
+            .addSnapshotListener { snapshot, _ ->
+                if (snapshot != null) {
+                    trySend(snapshot.toObjects(ReviewFirestore::class.java).sortedByDescending { it.timestamp })
+                }
+            }
+        awaitClose { subscription.remove() }
     }
 
     // --- Flash Promos ---
     fun getActivePromos(): Flow<List<PromoFirestore>> = callbackFlow {
         val subscription = firestore.collection("promos")
             .orderBy("timestamp", Query.Direction.DESCENDING)
-            .limit(10)
+            .limit(20)
+            .addSnapshotListener { snapshot, _ ->
+                if (snapshot != null) {
+                    val now = System.currentTimeMillis()
+                    val active = snapshot.toObjects(PromoFirestore::class.java)
+                        .filter { promo ->
+                            // Promos sin expiresAt (legado) caducan 24h después de creadas
+                            val expiry = if (promo.expiresAt > 0L) promo.expiresAt
+                                         else promo.timestamp + 24 * 60 * 60 * 1000L
+                            promo.isActive && expiry > now
+                        }
+                        .take(10)
+                    trySend(active)
+                }
+            }
+        awaitClose { subscription.remove() }
+    }
+
+    fun getPromosByOwner(email: String): Flow<List<PromoFirestore>> = callbackFlow {
+        val subscription = firestore.collection("promos")
+            .whereEqualTo("ownerEmail", email)
             .addSnapshotListener { snapshot, _ ->
                 if (snapshot != null) trySend(snapshot.toObjects(PromoFirestore::class.java))
             }
@@ -279,6 +359,17 @@ class FirebaseRepository {
             firestore.collection("promos").add(promo).await()
         } catch (e: Exception) {
             Log.e(TAG, "Error adding promo", e)
+        }
+    }
+
+    // --- FCM ---
+    suspend fun registerFcmToken() {
+        val uid = auth.currentUser?.uid ?: return
+        try {
+            val token = com.google.firebase.messaging.FirebaseMessaging.getInstance().token.await()
+            firestore.collection("users").document(uid).update("fcmToken", token).await()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error registering FCM token", e)
         }
     }
 

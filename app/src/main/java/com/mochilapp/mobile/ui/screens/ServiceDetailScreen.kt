@@ -32,14 +32,19 @@ fun ServiceDetailScreen(
     serviceId: String,
     viewModel: MarketplaceViewModel,
     onBookClick: (String) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    userName: String = ""
 ) {
     var service by remember { mutableStateOf<ServiceFirestore?>(null) }
+    var refreshKey by remember { mutableIntStateOf(0) }
     val scrollState = rememberScrollState()
     val context = LocalContext.current
     val activePromo by viewModel.activePromo.collectAsState()
+    val reviews by remember(serviceId) { viewModel.getReviewsForService(serviceId) }
+        .collectAsState(initial = emptyList())
+    var showReviewDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(serviceId) {
+    LaunchedEffect(serviceId, refreshKey) {
         service = viewModel.getServiceById(serviceId)
     }
 
@@ -119,7 +124,16 @@ fun ServiceDetailScreen(
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = Color.White)
                         }
                         IconButton(
-                            onClick = { /* Share */ },
+                            onClick = {
+                                val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(
+                                        android.content.Intent.EXTRA_TEXT,
+                                        "¡Mira esta experiencia en Mochilapp! 🎒\n\n${s.name} en ${s.location} desde $${s.price} MXN.\n\nDescarga Mochilapp para reservar."
+                                    )
+                                }
+                                context.startActivity(android.content.Intent.createChooser(shareIntent, "Compartir experiencia"))
+                            },
                             modifier = Modifier.background(Color.White.copy(0.2f), CircleShape)
                         ) {
                             Icon(Icons.Default.Share, contentDescription = null, tint = Color.White)
@@ -188,9 +202,21 @@ fun ServiceDetailScreen(
                         .padding(24.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    DetailBadge(Icons.Default.Star, "4.9", t("rating"))
-                    DetailBadge(Icons.Default.Timer, "2h", t("duration"))
-                    DetailBadge(Icons.Default.People, "1-10", t("people_count"))
+                    DetailBadge(
+                        Icons.Default.Star,
+                        if (s.reviewCount > 0) String.format(java.util.Locale.US, "%.1f", s.rating) else "Nuevo",
+                        if (s.reviewCount > 0) "${s.reviewCount} reseñas" else t("rating")
+                    )
+                    DetailBadge(
+                        Icons.Default.People,
+                        if (s.capacity > 0) "1-${s.capacity}" else "Libre",
+                        t("people_count")
+                    )
+                    DetailBadge(
+                        Icons.Default.Place,
+                        s.location.split(",").first().trim().take(10),
+                        t("location")
+                    )
                 }
 
                 // Description
@@ -258,12 +284,118 @@ fun ServiceDetailScreen(
                         }
                     }
                     
+                    Spacer(Modifier.height(32.dp))
+
+                    // Reseñas
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Reseñas (${reviews.size})", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        TextButton(onClick = { showReviewDialog = true }) {
+                            Icon(Icons.Default.RateReview, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Escribir reseña", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+
+                    if (reviews.isEmpty()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(Icons.Default.StarBorder, contentDescription = null, tint = Color.LightGray, modifier = Modifier.size(32.dp))
+                                Spacer(Modifier.height(8.dp))
+                                Text("Sé el primero en reseñar esta experiencia", fontSize = 12.sp, color = Color.Gray)
+                            }
+                        }
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            reviews.take(5).forEach { review ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(review.authorName.ifEmpty { "Viajero" }, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                                            repeat(5) { i ->
+                                                Icon(
+                                                    Icons.Default.Star,
+                                                    contentDescription = null,
+                                                    tint = if (i < review.rating) Color(0xFFFFD43B) else Color(0xFFE9ECEF),
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
+                                        }
+                                        if (review.comment.isNotEmpty()) {
+                                            Spacer(Modifier.height(8.dp))
+                                            Text(review.comment, fontSize = 13.sp, color = Color.DarkGray, lineHeight = 18.sp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     Spacer(Modifier.height(150.dp))
                 }
             }
         } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
+    }
+
+    if (showReviewDialog) {
+        var newRating by remember { mutableIntStateOf(5) }
+        var newComment by remember { mutableStateOf("") }
+
+        AlertDialog(
+            onDismissRequest = { showReviewDialog = false },
+            title = { Text("Tu reseña", fontWeight = FontWeight.Black) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
+                        repeat(5) { i ->
+                            IconButton(onClick = { newRating = i + 1 }) {
+                                Icon(
+                                    Icons.Default.Star,
+                                    contentDescription = "Estrella ${i + 1}",
+                                    tint = if (i < newRating) Color(0xFFFFD43B) else Color(0xFFE9ECEF),
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = newComment,
+                        onValueChange = { newComment = it },
+                        label = { Text("Cuéntanos tu experiencia (opcional)") },
+                        modifier = Modifier.fillMaxWidth().height(100.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.addReview(serviceId, userName.ifEmpty { "Viajero" }, newRating, newComment.trim())
+                    showReviewDialog = false
+                    refreshKey++
+                }) { Text("Publicar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showReviewDialog = false }) { Text("Cancelar") }
+            }
+        )
     }
 }
 

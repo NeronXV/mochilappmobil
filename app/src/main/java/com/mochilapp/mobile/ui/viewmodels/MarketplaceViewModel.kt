@@ -169,6 +169,9 @@ class MarketplaceViewModel(private val repository: FirebaseRepository) : ViewMod
         return repository.getServiceById(id)
     }
 
+    fun getReviewsForService(serviceId: String): Flow<List<ReviewFirestore>> =
+        repository.getReviewsForService(serviceId)
+
     fun addReview(serviceId: String, authorName: String, rating: Int, comment: String) {
         viewModelScope.launch {
             val review = ReviewFirestore(

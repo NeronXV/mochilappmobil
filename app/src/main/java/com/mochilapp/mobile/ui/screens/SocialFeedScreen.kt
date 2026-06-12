@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,6 +36,8 @@ fun SocialFeedScreen(
     onServiceClick: (String) -> Unit
 ) {
     val posts by viewModel.posts.collectAsState()
+    var commentsPostId by remember { mutableStateOf<String?>(null) }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     Scaffold(
         topBar = {
@@ -84,12 +87,126 @@ fun SocialFeedScreen(
             ) {
                 items(posts) { post ->
                     PremiumPostItem(
-                        post = post, 
+                        post = post,
                         currentUserUid = viewModel.userUid,
                         onLikeToggle = { viewModel.toggleLike(post) },
-                        onServiceClick = { id -> onServiceClick(id) }
+                        onServiceClick = { id -> onServiceClick(id) },
+                        onCommentClick = { commentsPostId = post.id },
+                        onShareClick = {
+                            val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(
+                                    android.content.Intent.EXTRA_TEXT,
+                                    "${post.authorName} en Mochilapp 🎒:\n\n\"${post.content}\"\n\nDescarga Mochilapp y descubre experiencias increíbles."
+                                )
+                            }
+                            context.startActivity(android.content.Intent.createChooser(shareIntent, "Compartir publicación"))
+                        }
                     )
                     Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
+        }
+    }
+
+    // Hoja de comentarios
+    commentsPostId?.let { postId ->
+        CommentsBottomSheet(
+            postId = postId,
+            viewModel = viewModel,
+            onDismiss = { commentsPostId = null }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CommentsBottomSheet(
+    postId: String,
+    viewModel: SocialViewModel,
+    onDismiss: () -> Unit
+) {
+    val comments by remember(postId) { viewModel.getComments(postId) }
+        .collectAsState(initial = emptyList())
+    var newComment by remember { mutableStateOf("") }
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .navigationBarsPadding()
+        ) {
+            Text(
+                "Comentarios (${comments.size})",
+                fontWeight = FontWeight.Black,
+                fontSize = 16.sp,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            LazyColumn(
+                modifier = Modifier.weight(1f, fill = false).heightIn(max = 400.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (comments.isEmpty()) {
+                    item {
+                        Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
+                            Text("Sé el primero en comentar", color = Color.Gray, fontSize = 13.sp)
+                        }
+                    }
+                } else {
+                    items(comments) { comment ->
+                        Row(verticalAlignment = Alignment.Top) {
+                            Surface(
+                                modifier = Modifier.size(32.dp),
+                                shape = CircleShape,
+                                color = Color(0xFFE9ECEF)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        comment.authorName.take(1).uppercase(),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Column {
+                                Text(comment.authorName, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text(comment.content, fontSize = 13.sp, lineHeight = 18.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // Campo para nuevo comentario
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = newComment,
+                    onValueChange = { newComment = it },
+                    placeholder = { Text("Escribe un comentario...", fontSize = 13.sp) },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(24.dp),
+                    maxLines = 3
+                )
+                Spacer(Modifier.width(8.dp))
+                FilledIconButton(
+                    onClick = {
+                        if (newComment.isNotBlank()) {
+                            viewModel.addComment(postId, newComment.trim())
+                            newComment = ""
+                        }
+                    },
+                    enabled = newComment.isNotBlank()
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Enviar")
                 }
             }
         }
@@ -98,10 +215,12 @@ fun SocialFeedScreen(
 
 @Composable
 fun PremiumPostItem(
-    post: PostFirestore, 
+    post: PostFirestore,
     currentUserUid: String,
     onLikeToggle: () -> Unit,
-    onServiceClick: (String) -> Unit
+    onServiceClick: (String) -> Unit,
+    onCommentClick: () -> Unit = {},
+    onShareClick: () -> Unit = {}
 ) {
     val isLiked = currentUserUid in post.likedBy
 
@@ -135,10 +254,6 @@ fun PremiumPostItem(
                 Column {
                     Text(text = post.authorName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     Text(text = "Explorador Mochilapp", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                }
-                Spacer(Modifier.weight(1f))
-                IconButton(onClick = { /* More actions */ }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = null, tint = Color.Gray)
                 }
             }
 
@@ -194,11 +309,11 @@ fun PremiumPostItem(
                         tint = if (isLiked) Color.Red else Color.Black
                     )
                 }
-                IconButton(onClick = { /* Comment logic */ }) {
+                IconButton(onClick = onCommentClick) {
                     Icon(Icons.Default.ChatBubbleOutline, contentDescription = "Comment")
                 }
-                IconButton(onClick = { /* Share logic */ }) {
-                    Icon(Icons.Default.Send, contentDescription = "Share")
+                IconButton(onClick = onShareClick) {
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Share")
                 }
             }
 
@@ -220,10 +335,12 @@ fun PremiumPostItem(
                 }
                 
                 Text(
-                    text = "Ver los 12 comentarios", 
-                    color = Color.Gray, 
+                    text = "Ver comentarios",
+                    color = Color.Gray,
                     style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.padding(top = 8.dp)
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .clickable(onClick = onCommentClick)
                 )
             }
         }

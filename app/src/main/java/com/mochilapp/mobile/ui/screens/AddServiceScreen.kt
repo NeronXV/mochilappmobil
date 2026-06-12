@@ -18,7 +18,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -30,6 +29,9 @@ import com.mochilapp.mobile.data.CompanyType
 import com.mochilapp.mobile.data.ServiceFirestore
 import com.mochilapp.mobile.ui.viewmodels.CompanyViewModel
 
+// Tipos donde el punto de encuentro puede diferir de la dirección del negocio
+private val meetingPointTypes = listOf(CompanyType.BOAT_TOUR, CompanyType.TOUR_AGENCY, CompanyType.TRANSPORT)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddServiceScreen(
@@ -37,51 +39,35 @@ fun AddServiceScreen(
     onMapClick: () -> Unit,
     onBack: () -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var price by remember { mutableStateOf("") }
-    var location by remember { mutableStateOf("") }
-    var type by remember { mutableStateOf(CompanyType.HOTEL) }
-    var imageUri by remember { mutableStateOf<Uri?>(null) }
-
-    // Advanced fields
-    var capacity by remember { mutableStateOf("") }
-    var departureTimes by remember { mutableStateOf("") }
-    var meetingPoint by remember { mutableStateOf("") }
-    var checkIn by remember { mutableStateOf("") }
-    var checkOut by remember { mutableStateOf("") }
-    var amenities by remember { mutableStateOf("") }
-    var rules by remember { mutableStateOf("") }
-    var routeName by remember { mutableStateOf("") }
-    var origin by remember { mutableStateOf("") }
-    var destination by remember { mutableStateOf("") }
-    var vehicleName by remember { mutableStateOf("") }
-    var driverName by remember { mutableStateOf("") }
-    var guideName by remember { mutableStateOf("") }
-    var businessHours by remember { mutableStateOf("") }
-    var isOpen by remember { mutableStateOf(true) }
-    
-    // Coordinates and Address
-    var address by remember { mutableStateOf("") }
+    // El borrador vive en el ViewModel: sobrevive la ida y vuelta al mapa
+    val draft by viewModel.serviceDraft.collectAsState()
     val selectedLat by viewModel.selectedLat.collectAsState()
     val selectedLng by viewModel.selectedLng.collectAsState()
-    
     val isLoading by viewModel.isLoading.collectAsState()
     val scrollState = rememberScrollState()
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        imageUri = uri
+        if (uri != null) viewModel.updateServiceDraft(draft.copy(imageUri = uri))
     }
+
+    val isEditing = draft.editingServiceId != null
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Publicar Experiencia", fontWeight = FontWeight.Black) },
+                title = { Text(if (isEditing) "Editar Servicio" else "Publicar Experiencia", fontWeight = FontWeight.Black) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    TextButton(onClick = {
+                        viewModel.clearServiceDraft()
+                    }) {
+                        Text("Limpiar", color = Color.Gray, fontSize = 12.sp)
                     }
                 }
             )
@@ -108,14 +94,13 @@ fun AddServiceScreen(
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        if (imageUri != null) {
+                        if (draft.imageUri != null || draft.existingImageUrl.isNotEmpty()) {
                             AsyncImage(
-                                model = imageUri,
+                                model = draft.imageUri ?: draft.existingImageUrl,
                                 contentDescription = null,
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop
                             )
-                            // Overlay to show we can change it
                             Surface(
                                 color = Color.Black.copy(alpha = 0.5f),
                                 shape = CircleShape,
@@ -142,37 +127,37 @@ fun AddServiceScreen(
                 ) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
                         OutlinedTextField(
-                            value = name, 
-                            onValueChange = { name = it }, 
-                            label = { Text("¿Cómo se llama tu servicio?") }, 
+                            value = draft.name,
+                            onValueChange = { viewModel.updateServiceDraft(draft.copy(name = it)) },
+                            label = { Text("¿Cómo se llama tu servicio?") },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
                             leadingIcon = { Icon(Icons.Default.Title, contentDescription = null, tint = Color(0xFF007BFF)) }
                         )
-                        
+
                         OutlinedTextField(
-                            value = description, 
-                            onValueChange = { description = it }, 
-                            label = { Text("Cuéntale a los viajeros de qué trata...") }, 
+                            value = draft.description,
+                            onValueChange = { viewModel.updateServiceDraft(draft.copy(description = it)) },
+                            label = { Text("Cuéntale a los viajeros de qué trata...") },
                             modifier = Modifier.fillMaxWidth().height(120.dp),
                             shape = RoundedCornerShape(12.dp)
                         )
-                        
+
                         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                             OutlinedTextField(
-                                value = price, 
-                                onValueChange = { price = it }, 
-                                label = { Text("Precio USD") }, 
+                                value = draft.price,
+                                onValueChange = { viewModel.updateServiceDraft(draft.copy(price = it)) },
+                                label = { Text("Precio MXN") },
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(12.dp),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null, tint = Color(0xFF2E7D32)) }
                             )
-                            
+
                             var expanded by remember { mutableStateOf(false) }
                             Box(modifier = Modifier.weight(1.2f)) {
                                 OutlinedTextField(
-                                    value = type.name,
+                                    value = draft.type.name,
                                     onValueChange = {},
                                     readOnly = true,
                                     label = { Text("Categoría") },
@@ -187,27 +172,21 @@ fun AddServiceScreen(
                                 DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                                     CompanyType.entries.filter { it != CompanyType.NONE }.forEach { t ->
                                         DropdownMenuItem(
-                                            text = { Text(t.name) }, 
-                                            onClick = { type = t; expanded = false }
+                                            text = { Text(t.name) },
+                                            onClick = {
+                                                viewModel.updateServiceDraft(draft.copy(type = t))
+                                                expanded = false
+                                            }
                                         )
                                     }
                                 }
                             }
                         }
-
-                        OutlinedTextField(
-                            value = location, 
-                            onValueChange = { location = it }, 
-                            label = { Text("Ubicación (Ciudad, País)") }, 
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color.Red) }
-                        )
                     }
                 }
 
                 // Advanced Fields Card (Business Dashboard alignment)
-                if (type != CompanyType.NONE) {
+                if (draft.type != CompanyType.NONE) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(24.dp),
@@ -221,16 +200,16 @@ fun AddServiceScreen(
                                 color = Color(0xFF106154)
                             )
                             Text(
-                                text = "Estos datos ayudan a que tu panel web muestre cupos, horarios y disponibilidad.",
+                                text = "Estos datos alimentan tu panel de control: cupos, horarios y disponibilidad.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color.Gray
                             )
 
                             // Capacity (Common for many)
-                            if (type in listOf(CompanyType.BOAT_TOUR, CompanyType.TOUR_AGENCY, CompanyType.TRANSPORT, CompanyType.HOTEL, CompanyType.HOSTEL, CompanyType.PROPERTY_RENTAL)) {
+                            if (draft.type in listOf(CompanyType.BOAT_TOUR, CompanyType.TOUR_AGENCY, CompanyType.TRANSPORT, CompanyType.HOTEL, CompanyType.HOSTEL, CompanyType.PROPERTY_RENTAL)) {
                                 OutlinedTextField(
-                                    value = capacity,
-                                    onValueChange = { if (it.all { char -> char.isDigit() }) capacity = it },
+                                    value = draft.capacity,
+                                    onValueChange = { if (it.all { char -> char.isDigit() }) viewModel.updateServiceDraft(draft.copy(capacity = it)) },
                                     label = { Text("Capacidad máxima") },
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(12.dp),
@@ -240,10 +219,10 @@ fun AddServiceScreen(
                             }
 
                             // Departure Times (Tours and Transport)
-                            if (type in listOf(CompanyType.BOAT_TOUR, CompanyType.TOUR_AGENCY, CompanyType.TRANSPORT)) {
+                            if (draft.type in listOf(CompanyType.BOAT_TOUR, CompanyType.TOUR_AGENCY, CompanyType.TRANSPORT)) {
                                 OutlinedTextField(
-                                    value = departureTimes,
-                                    onValueChange = { departureTimes = it },
+                                    value = draft.departureTimes,
+                                    onValueChange = { viewModel.updateServiceDraft(draft.copy(departureTimes = it)) },
                                     label = { Text("Horarios (ej: 09:00, 13:00)") },
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(12.dp),
@@ -252,10 +231,10 @@ fun AddServiceScreen(
                             }
 
                             // Guide Name (Agency)
-                            if (type == CompanyType.TOUR_AGENCY) {
+                            if (draft.type == CompanyType.TOUR_AGENCY) {
                                 OutlinedTextField(
-                                    value = guideName,
-                                    onValueChange = { guideName = it },
+                                    value = draft.guideName,
+                                    onValueChange = { viewModel.updateServiceDraft(draft.copy(guideName = it)) },
                                     label = { Text("Nombre del guía") },
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(12.dp),
@@ -264,33 +243,33 @@ fun AddServiceScreen(
                             }
 
                             // Lodging Specifics
-                            if (type in listOf(CompanyType.HOTEL, CompanyType.HOSTEL, CompanyType.PROPERTY_RENTAL)) {
+                            if (draft.type in listOf(CompanyType.HOTEL, CompanyType.HOSTEL, CompanyType.PROPERTY_RENTAL)) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                     OutlinedTextField(
-                                        value = checkIn,
-                                        onValueChange = { checkIn = it },
+                                        value = draft.checkIn,
+                                        onValueChange = { viewModel.updateServiceDraft(draft.copy(checkIn = it)) },
                                         label = { Text("Check-in") },
                                         modifier = Modifier.weight(1f),
                                         shape = RoundedCornerShape(12.dp)
                                     )
                                     OutlinedTextField(
-                                        value = checkOut,
-                                        onValueChange = { checkOut = it },
+                                        value = draft.checkOut,
+                                        onValueChange = { viewModel.updateServiceDraft(draft.copy(checkOut = it)) },
                                         label = { Text("Check-out") },
                                         modifier = Modifier.weight(1f),
                                         shape = RoundedCornerShape(12.dp)
                                     )
                                 }
                                 OutlinedTextField(
-                                    value = amenities,
-                                    onValueChange = { amenities = it },
+                                    value = draft.amenities,
+                                    onValueChange = { viewModel.updateServiceDraft(draft.copy(amenities = it)) },
                                     label = { Text("Servicios (ej: WiFi, Piscina)") },
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(12.dp)
                                 )
                                 OutlinedTextField(
-                                    value = rules,
-                                    onValueChange = { rules = it },
+                                    value = draft.rules,
+                                    onValueChange = { viewModel.updateServiceDraft(draft.copy(rules = it)) },
                                     label = { Text("Reglas (ej: No mascotas)") },
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(12.dp)
@@ -298,55 +277,55 @@ fun AddServiceScreen(
                             }
 
                             // Restaurant Specifics
-                            if (type in listOf(CompanyType.RESTAURANT, CompanyType.FOOD_STAND)) {
+                            if (draft.type in listOf(CompanyType.RESTAURANT, CompanyType.FOOD_STAND)) {
                                 OutlinedTextField(
-                                    value = businessHours,
-                                    onValueChange = { businessHours = it },
+                                    value = draft.businessHours,
+                                    onValueChange = { viewModel.updateServiceDraft(draft.copy(businessHours = it)) },
                                     label = { Text("Horario (ej: 09:00 - 22:00)") },
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(12.dp)
                                 )
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text("¿Está abierto ahora?", modifier = Modifier.weight(1f))
-                                    Switch(checked = isOpen, onCheckedChange = { isOpen = it })
+                                    Switch(checked = draft.isOpen, onCheckedChange = { viewModel.updateServiceDraft(draft.copy(isOpen = it)) })
                                 }
                             }
 
                             // Transport Specifics
-                            if (type == CompanyType.TRANSPORT) {
+                            if (draft.type == CompanyType.TRANSPORT) {
                                 OutlinedTextField(
-                                    value = routeName,
-                                    onValueChange = { routeName = it },
+                                    value = draft.routeName,
+                                    onValueChange = { viewModel.updateServiceDraft(draft.copy(routeName = it)) },
                                     label = { Text("Nombre de la ruta") },
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(12.dp)
                                 )
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                     OutlinedTextField(
-                                        value = origin,
-                                        onValueChange = { origin = it },
+                                        value = draft.origin,
+                                        onValueChange = { viewModel.updateServiceDraft(draft.copy(origin = it)) },
                                         label = { Text("Origen") },
                                         modifier = Modifier.weight(1f),
                                         shape = RoundedCornerShape(12.dp)
                                     )
                                     OutlinedTextField(
-                                        value = destination,
-                                        onValueChange = { destination = it },
+                                        value = draft.destination,
+                                        onValueChange = { viewModel.updateServiceDraft(draft.copy(destination = it)) },
                                         label = { Text("Destino") },
                                         modifier = Modifier.weight(1f),
                                         shape = RoundedCornerShape(12.dp)
                                     )
                                 }
                                 OutlinedTextField(
-                                    value = vehicleName,
-                                    onValueChange = { vehicleName = it },
+                                    value = draft.vehicleName,
+                                    onValueChange = { viewModel.updateServiceDraft(draft.copy(vehicleName = it)) },
                                     label = { Text("Vehículo / Placas") },
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(12.dp)
                                 )
                                 OutlinedTextField(
-                                    value = driverName,
-                                    onValueChange = { driverName = it },
+                                    value = draft.driverName,
+                                    onValueChange = { viewModel.updateServiceDraft(draft.copy(driverName = it)) },
                                     label = { Text("Nombre del chofer") },
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(12.dp)
@@ -356,7 +335,7 @@ fun AddServiceScreen(
                     }
                 }
 
-                // Service Location Section
+                // Ubicación: una sola sección consolidada
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(24.dp),
@@ -369,31 +348,37 @@ fun AddServiceScreen(
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = Color(0xFF106154)
                         )
-                        Text(
-                            text = "Agrega la dirección o punto de encuentro para que los viajeros puedan ubicar tu servicio.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.Gray
-                        )
-                        
+
                         OutlinedTextField(
-                            value = address,
-                            onValueChange = { address = it },
+                            value = draft.location,
+                            onValueChange = { viewModel.updateServiceDraft(draft.copy(location = it)) },
+                            label = { Text("Ciudad o pueblo (ej: Tulum)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color.Red) }
+                        )
+
+                        OutlinedTextField(
+                            value = draft.address,
+                            onValueChange = { viewModel.updateServiceDraft(draft.copy(address = it)) },
                             label = { Text("Dirección o referencia exacta") },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
                             leadingIcon = { Icon(Icons.Default.Map, contentDescription = null, tint = Color.Gray) }
                         )
 
-                        OutlinedTextField(
-                            value = meetingPoint,
-                            onValueChange = { meetingPoint = it },
-                            label = { Text("Punto de encuentro (Opcional)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            leadingIcon = { Icon(Icons.Default.Place, contentDescription = null, tint = Color.Gray) }
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
+                        // Solo para tours/transporte, donde el punto de salida puede
+                        // diferir de la dirección del negocio
+                        if (draft.type in meetingPointTypes) {
+                            OutlinedTextField(
+                                value = draft.meetingPoint,
+                                onValueChange = { viewModel.updateServiceDraft(draft.copy(meetingPoint = it)) },
+                                label = { Text("Punto de encuentro / salida (Opcional)") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                leadingIcon = { Icon(Icons.Default.Place, contentDescription = null, tint = Color.Gray) }
+                            )
+                        }
 
                         Button(
                             onClick = onMapClick,
@@ -407,7 +392,7 @@ fun AddServiceScreen(
                             Icon(if (selectedLat != 0.0) Icons.Default.CheckCircle else Icons.Default.Map, contentDescription = null)
                             Spacer(Modifier.width(12.dp))
                             Text(
-                                if (selectedLat != 0.0) "Ubicación seleccionada en mapa" 
+                                if (selectedLat != 0.0) "Ubicación seleccionada en mapa"
                                 else "Seleccionar en mapa (Opcional)",
                                 fontWeight = FontWeight.Bold
                             )
@@ -423,7 +408,7 @@ fun AddServiceScreen(
                         }
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.height(100.dp))
             }
 
@@ -436,39 +421,42 @@ fun AddServiceScreen(
             ) {
                 Button(
                     onClick = {
-                        viewModel.addService(
-                            ServiceFirestore(
-                                name = name,
-                                description = description,
-                                price = price.toDoubleOrNull() ?: 0.0,
-                                type = type.name,
-                                location = location,
-                                capacity = capacity.toIntOrNull() ?: 0,
-                                departureTimes = departureTimes.split(",").map { it.trim() }.filter { it.isNotEmpty() },
-                                meetingPoint = meetingPoint,
-                                checkIn = checkIn,
-                                checkOut = checkOut,
-                                amenities = amenities.split(",").map { it.trim() }.filter { it.isNotEmpty() },
-                                rules = rules.split(",").map { it.trim() }.filter { it.isNotEmpty() },
-                                routeName = routeName,
-                                origin = origin,
-                                destination = destination,
-                                vehicleName = vehicleName,
-                                driverName = driverName,
-                                guideName = guideName,
-                                businessHours = if (businessHours.isNotBlank()) mapOf("general" to businessHours) else emptyMap(),
-                                isOpen = isOpen,
-                                isVisible = true,
-                                address = address,
-                                latitude = selectedLat,
-                                longitude = selectedLng
-                            ),
-                            imageUri = imageUri,
-                            onComplete = {
-                                viewModel.clearCoordinates()
-                                onBack()
-                            }
+                        val service = ServiceFirestore(
+                            name = draft.name,
+                            description = draft.description,
+                            price = draft.price.toDoubleOrNull() ?: 0.0,
+                            type = draft.type.name,
+                            location = draft.location,
+                            imageUrl = draft.existingImageUrl,
+                            capacity = draft.capacity.toIntOrNull() ?: 0,
+                            departureTimes = draft.departureTimes.split(",").map { it.trim() }.filter { it.isNotEmpty() },
+                            meetingPoint = draft.meetingPoint,
+                            checkIn = draft.checkIn,
+                            checkOut = draft.checkOut,
+                            amenities = draft.amenities.split(",").map { it.trim() }.filter { it.isNotEmpty() },
+                            rules = draft.rules.split(",").map { it.trim() }.filter { it.isNotEmpty() },
+                            routeName = draft.routeName,
+                            origin = draft.origin,
+                            destination = draft.destination,
+                            vehicleName = draft.vehicleName,
+                            driverName = draft.driverName,
+                            guideName = draft.guideName,
+                            businessHours = if (draft.businessHours.isNotBlank()) mapOf("general" to draft.businessHours) else emptyMap(),
+                            isOpen = draft.isOpen,
+                            isVisible = true,
+                            address = draft.address,
+                            latitude = selectedLat,
+                            longitude = selectedLng
                         )
+                        val onDone = {
+                            viewModel.clearServiceDraft()
+                            onBack()
+                        }
+                        if (isEditing) {
+                            viewModel.updateService(draft.editingServiceId!!, service, draft.imageUri, onDone)
+                        } else {
+                            viewModel.addService(service, draft.imageUri, onDone)
+                        }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -476,12 +464,12 @@ fun AddServiceScreen(
                         .height(56.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007BFF)),
-                    enabled = name.isNotBlank() && price.isNotBlank() && !isLoading
+                    enabled = draft.name.isNotBlank() && draft.price.isNotBlank() && !isLoading
                 ) {
                     if (isLoading) {
                         CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                     } else {
-                        Text("Publicar Ahora", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(if (isEditing) "Guardar Cambios" else "Publicar Ahora", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     }
                 }
             }

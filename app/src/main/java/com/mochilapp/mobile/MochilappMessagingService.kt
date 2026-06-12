@@ -19,7 +19,11 @@ class MochilappMessagingService : FirebaseMessagingService() {
     }
 
     override fun onNewToken(token: String) {
-        // Enviar token al servidor si es necesario
+        // Guardar el token en el perfil del usuario para poder enviarle push dirigidas
+        val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: return
+        com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            .collection("users").document(uid)
+            .update("fcmToken", token)
     }
 
     private fun showNotification(title: String, message: String) {

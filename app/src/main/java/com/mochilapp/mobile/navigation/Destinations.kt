@@ -64,4 +64,7 @@ sealed interface Destination : NavKey {
 
     @Serializable
     data object MapPicker : Destination
+
+    @Serializable
+    data object BoatTourModule : Destination
 }

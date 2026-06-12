@@ -309,31 +309,17 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Social Buttons side by side
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                OutlinedButton(
-                    onClick = { googleLauncher.launch(googleSignInClient.signInIntent) },
-                    modifier = Modifier.weight(1f).height(56.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.5.dp, Color(0xFFE9ECEF))
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(painterResource(id = R.drawable.ic_google_logo), contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.Unspecified)
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text("Google", color = Color.Black, fontWeight = FontWeight.Bold)
-                    }
-                }
-                OutlinedButton(
-                    onClick = { /* Apple Sign In placeholder */ },
-                    modifier = Modifier.weight(1f).height(56.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.5.dp, Color(0xFFE9ECEF))
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(imageVector = Icons.Default.PhoneIphone, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.Black)
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text("Apple", color = Color.Black, fontWeight = FontWeight.Bold)
-                    }
+            // Google Sign-In
+            OutlinedButton(
+                onClick = { googleLauncher.launch(googleSignInClient.signInIntent) },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.5.dp, Color(0xFFE9ECEF))
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(painterResource(id = R.drawable.ic_google_logo), contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.Unspecified)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("Continuar con Google", color = Color.Black, fontWeight = FontWeight.Bold)
                 }
             }
 

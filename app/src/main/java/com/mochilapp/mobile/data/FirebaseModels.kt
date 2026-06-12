@@ -22,7 +22,8 @@ data class UserFirestore(
     val status: String = "PENDING",
     val checkIn: String = "",
     val checkOut: String = "",
-    val meetingPoint: String = ""
+    val meetingPoint: String = "",
+    val fcmToken: String = ""
 )
 
 data class MenuItemFirestore(

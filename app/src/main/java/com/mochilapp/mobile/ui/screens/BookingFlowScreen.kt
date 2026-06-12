@@ -43,7 +43,16 @@ fun BookingFlowScreen(
     val bookingsByDate by bookingViewModel.currentBookings.collectAsState()
 
     val bookingResult by bookingViewModel.bookingResult.collectAsState()
+    val bookingError by bookingViewModel.bookingError.collectAsState()
     val activePromo by marketplaceViewModel.activePromo.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    LaunchedEffect(bookingError) {
+        bookingError?.let { msg ->
+            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+            bookingViewModel.clearBookingError()
+        }
+    }
 
     LaunchedEffect(serviceId) {
         service = marketplaceViewModel.getServiceById(serviceId)

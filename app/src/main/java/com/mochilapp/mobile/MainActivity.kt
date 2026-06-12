@@ -91,6 +91,13 @@ fun MochilappApp(currentLanguage: AppLanguage, onLanguageChange: (AppLanguage) -
     val marketplaceViewModel: MarketplaceViewModel = viewModel(
         factory = ViewModelFactory(repository = repository)
     )
+
+    // Registrar el token FCM en el perfil al iniciar sesión
+    LaunchedEffect(userUid) {
+        if (userUid.isNotEmpty()) {
+            repository.registerFcmToken()
+        }
+    }
     
     @Suppress("UNCHECKED_CAST")
     val backStack = rememberNavBackStack(Destination.Splash) as NavBackStack<Destination>
@@ -194,7 +201,19 @@ fun MochilappApp(currentLanguage: AppLanguage, onLanguageChange: (AppLanguage) -
                         }
                     },
                     onProfileClick = { backStack.add(Destination.UserProfile) },
-                    onBookingClick = { id -> backStack.add(Destination.BookingDetailCompany(id)) }
+                    onBookingClick = { id -> backStack.add(Destination.BookingDetailCompany(id)) },
+                    onBoatModuleClick = { backStack.add(Destination.BoatTourModule) },
+                    onCommunityClick = { backStack.add(Destination.SocialFeed) }
+                )
+            }
+            entry<Destination.BoatTourModule> {
+                val companyViewModel: CompanyViewModel = viewModel(
+                    key = "company_$userUid",
+                    factory = ViewModelFactory(repository = repository, userEmail = userEmail, userUid = userUid)
+                )
+                BoatTourModuleScreen(
+                    viewModel = companyViewModel,
+                    onBack = { backStack.removeAt(backStack.size - 1) }
                 )
             }
             entry<Destination.BookingDetailCompany> { key ->
@@ -235,7 +254,8 @@ fun MochilappApp(currentLanguage: AppLanguage, onLanguageChange: (AppLanguage) -
                     serviceId = key.serviceId,
                     viewModel = marketplaceViewModel,
                     onBookClick = { id -> backStack.add(Destination.BookingFlow(id)) },
-                    onBack = { backStack.removeAt(backStack.size - 1) }
+                    onBack = { backStack.removeAt(backStack.size - 1) },
+                    userName = userName
                 )
             }
             entry<Destination.BookingFlow> { key ->

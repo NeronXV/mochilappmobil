@@ -50,7 +50,22 @@ fun TourismMapScreen(
     val context = LocalContext.current
     val services by marketplaceViewModel.services.collectAsState()
     var selectedService by remember { mutableStateOf<ServiceFirestore?>(null) }
-    
+
+    // Filtro local de categoría (no afecta los filtros del home)
+    var selectedCategory by remember { mutableStateOf<MapCategory?>(null) }
+    val filteredServices = remember(services, selectedCategory) {
+        services.filter { service ->
+            service.isVisible && service.latitude != 0.0 && service.longitude != 0.0 &&
+                (selectedCategory == null || service.type in selectedCategory!!.types)
+        }
+    }
+    // Si el servicio seleccionado queda fuera del filtro, cerrar su tarjeta
+    LaunchedEffect(selectedCategory) {
+        if (selectedService != null && selectedCategory != null && selectedService!!.type !in selectedCategory!!.types) {
+            selectedService = null
+        }
+    }
+
     // Fallback: La Paz, BCS, Mexico
     val defaultLocation = LatLng(24.1426, -110.3128)
     val cameraPositionState = rememberCameraPositionState {
@@ -73,6 +88,27 @@ fun TourismMapScreen(
     LaunchedEffect(Unit) {
         if (!hasLocationPermission) {
             launcher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        }
+    }
+
+    // Centrar la cámara en la ubicación del viajero al obtener permiso
+    LaunchedEffect(hasLocationPermission) {
+        if (hasLocationPermission) {
+            try {
+                val fused = com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(context)
+                @Suppress("MissingPermission")
+                fused.lastLocation.addOnSuccessListener { location ->
+                    if (location != null) {
+                        cameraPositionState.move(
+                            com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(
+                                LatLng(location.latitude, location.longitude), 14f
+                            )
+                        )
+                    }
+                }
+            } catch (_: SecurityException) {
+                // Sin permiso: se queda en la ubicación por defecto
+            }
         }
     }
 
@@ -107,35 +143,49 @@ fun TourismMapScreen(
                 uiSettings = uiSettings,
                 onMapClick = { selectedService = null }
             ) {
-                // Filter real services with valid coordinates
-                services.filter { it.isVisible && it.latitude != 0.0 && it.longitude != 0.0 }.forEach { service ->
-                    val markerIcon = remember(service.type) {
-                        createCustomMarkerIcon(context, service.type)
+                filteredServices.forEach { service ->
+                    val isSelected = selectedService?.id == service.id
+                    val markerIcon = remember(service.id, service.price, isSelected) {
+                        createPricePillMarker(service.price, service.type, isSelected)
                     }
 
                     Marker(
                         state = MarkerState(position = LatLng(service.latitude, service.longitude)),
                         icon = markerIcon,
                         title = service.name,
+                        zIndex = if (isSelected) 1f else 0f,
                         onClick = {
                             selectedService = service
-                            true 
+                            true
                         }
                     )
                 }
             }
 
-            // Floating Tip
-            Surface(
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 80.dp, start = 20.dp, end = 20.dp).fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                color = Color.White.copy(alpha = 0.9f),
-                shadowElevation = 8.dp
+            // Chips flotantes de categoría
+            androidx.compose.foundation.lazy.LazyRow(
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 80.dp).fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Explore, contentDescription = null, tint = Color(0xFF007BFF))
-                    Spacer(Modifier.width(12.dp))
-                    Text("Explorando experiencias reales", fontWeight = FontWeight.Bold, color = Color.DarkGray, fontSize = 13.sp)
+                item {
+                    MapFilterChip(
+                        label = "Todos",
+                        emoji = "🗺️",
+                        selected = selectedCategory == null,
+                        onClick = { selectedCategory = null }
+                    )
+                }
+                items(MapCategory.entries.size) { index ->
+                    val category = MapCategory.entries[index]
+                    MapFilterChip(
+                        label = category.label,
+                        emoji = category.emoji,
+                        selected = selectedCategory == category,
+                        onClick = {
+                            selectedCategory = if (selectedCategory == category) null else category
+                        }
+                    )
                 }
             }
 
@@ -160,7 +210,7 @@ fun TourismMapScreen(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(service.name, fontWeight = FontWeight.Black, fontSize = 16.sp, maxLines = 1)
                                     Text(service.location, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                                    Text("$${service.price} USD", fontWeight = FontWeight.ExtraBold, color = Color(0xFF007BFF), fontSize = 16.sp)
+                                    Text("$${service.price} MXN", fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary, fontSize = 16.sp)
                                 }
                                 IconButton(
                                     onClick = { onServiceClick(service.id) },
@@ -174,13 +224,17 @@ fun TourismMapScreen(
                             
                             Button(
                                 onClick = {
-                                    val gmmIntentUri = Uri.parse("geo:${service.latitude},${service.longitude}?q=${service.latitude},${service.longitude}(${service.name})")
-                                    val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
-                                    mapIntent.setPackage("com.google.android.apps.maps")
-                                    if (mapIntent.resolveActivity(context.packageManager) != null) {
-                                        context.startActivity(mapIntent)
+                                    // Navegación con ruta desde la ubicación actual del viajero
+                                    val navUri = Uri.parse("google.navigation:q=${service.latitude},${service.longitude}")
+                                    val navIntent = Intent(Intent.ACTION_VIEW, navUri).apply {
+                                        setPackage("com.google.android.apps.maps")
+                                    }
+                                    if (navIntent.resolveActivity(context.packageManager) != null) {
+                                        context.startActivity(navIntent)
                                     } else {
-                                        context.startActivity(Intent(Intent.ACTION_VIEW, gmmIntentUri))
+                                        // Fallback: ruta en el navegador
+                                        val webUri = Uri.parse("https://www.google.com/maps/dir/?api=1&destination=${service.latitude},${service.longitude}")
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, webUri))
                                     }
                                 },
                                 modifier = Modifier.fillMaxWidth(),
@@ -199,29 +253,128 @@ fun TourismMapScreen(
     }
 }
 
-private fun createCustomMarkerIcon(context: Context, type: String): BitmapDescriptor {
-    val (iconRes, color) = when (type) {
-        "HOTEL" -> Pair(android.R.drawable.ic_menu_myplaces, android.graphics.Color.parseColor("#007BFF"))
-        "BOAT_TOUR" -> Pair(android.R.drawable.ic_menu_directions, android.graphics.Color.parseColor("#28A745"))
-        "RESTAURANT" -> Pair(android.R.drawable.ic_menu_compass, android.graphics.Color.parseColor("#FD7E14"))
-        else -> Pair(android.R.drawable.ic_menu_mapmode, android.graphics.Color.parseColor("#6F42C1"))
+// Categorías del filtro del mapa: agrupan tipos afines para no saturar la UI
+enum class MapCategory(val label: String, val emoji: String, val types: List<String>) {
+    BOATS("Lanchas", "⛵", listOf("BOAT_TOUR")),
+    LODGING("Hospedaje", "🏨", listOf("HOTEL", "HOSTEL", "PROPERTY_RENTAL")),
+    FOOD("Comida", "🍽️", listOf("RESTAURANT", "FOOD_STAND")),
+    TOURS("Tours", "🧭", listOf("TOUR_AGENCY")),
+    TRANSPORT("Transporte", "🚐", listOf("TRANSPORT")),
+    OTHER("Otros", "🎒", listOf("OTHER"))
+}
+
+@Composable
+private fun MapFilterChip(
+    label: String,
+    emoji: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(20.dp),
+        color = if (selected) MaterialTheme.colorScheme.primary else Color.White,
+        shadowElevation = 6.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(emoji, fontSize = 13.sp)
+            Spacer(Modifier.width(6.dp))
+            Text(
+                label,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (selected) Color.White else Color(0xFF1A1C1E)
+            )
+        }
+    }
+}
+
+// Emoji representativo por tipo de servicio para el marcador
+private fun emojiForType(type: String): String = when (type) {
+    "HOTEL", "HOSTEL" -> "🏨"
+    "BOAT_TOUR" -> "⛵"
+    "RESTAURANT", "FOOD_STAND" -> "🍽️"
+    "TRANSPORT" -> "🚐"
+    "TOUR_AGENCY" -> "🧭"
+    "PROPERTY_RENTAL" -> "🏡"
+    else -> "🎒"
+}
+
+// Marcador estilo Google Maps/Airbnb: píldora blanca con emoji + precio.
+// Al seleccionarse se invierte a azul de marca con texto blanco.
+private fun createPricePillMarker(price: Double, type: String, isSelected: Boolean): BitmapDescriptor {
+    val label = "${emojiForType(type)} $${if (price % 1.0 == 0.0) price.toInt().toString() else price.toString()}"
+
+    val density = 3f // escala para nitidez en pantallas de alta densidad
+    val textSizePx = 13f * density
+    val paddingH = 12f * density
+    val paddingV = 8f * density
+    val cornerRadius = 18f * density
+    val shadowOffset = 2f * density
+
+    val textPaint = android.graphics.Paint().apply {
+        isAntiAlias = true
+        textSize = textSizePx
+        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+        color = if (isSelected) android.graphics.Color.WHITE else android.graphics.Color.parseColor("#1A1C1E")
     }
 
-    val size = 100
-    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val textWidth = textPaint.measureText(label)
+    val fontMetrics = textPaint.fontMetrics
+    val textHeight = fontMetrics.descent - fontMetrics.ascent
+
+    val pillWidth = textWidth + paddingH * 2
+    val pillHeight = textHeight + paddingV * 2
+    val bitmapWidth = (pillWidth + shadowOffset * 2).toInt()
+    val bitmapHeight = (pillHeight + shadowOffset * 2).toInt()
+
+    val bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
-    val paint = android.graphics.Paint().apply { this.color = color; isAntiAlias = true }
-    
-    canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
-    paint.apply { style = android.graphics.Paint.Style.STROKE; this.color = android.graphics.Color.WHITE; strokeWidth = 6f }
-    canvas.drawCircle(size / 2f, size / 2f, (size / 2f) - 3, paint)
 
-    ContextCompat.getDrawable(context, iconRes)?.let {
-        it.setTint(android.graphics.Color.WHITE)
-        val iconSize = 50
-        val offset = (size - iconSize) / 2
-        it.setBounds(offset, offset, offset + iconSize, offset + iconSize)
-        it.draw(canvas)
+    // Sombra suave
+    val shadowPaint = android.graphics.Paint().apply {
+        isAntiAlias = true
+        color = android.graphics.Color.parseColor("#33000000")
     }
+    canvas.drawRoundRect(
+        shadowOffset, shadowOffset * 1.5f, pillWidth + shadowOffset, pillHeight + shadowOffset * 1.5f,
+        cornerRadius, cornerRadius, shadowPaint
+    )
+
+    // Cuerpo de la píldora
+    val bgPaint = android.graphics.Paint().apply {
+        isAntiAlias = true
+        color = if (isSelected) android.graphics.Color.parseColor("#006495") else android.graphics.Color.WHITE
+    }
+    canvas.drawRoundRect(
+        shadowOffset, shadowOffset / 2, pillWidth + shadowOffset, pillHeight + shadowOffset / 2,
+        cornerRadius, cornerRadius, bgPaint
+    )
+
+    // Borde sutil (solo en estado normal)
+    if (!isSelected) {
+        val borderPaint = android.graphics.Paint().apply {
+            isAntiAlias = true
+            style = android.graphics.Paint.Style.STROKE
+            strokeWidth = 1f * density
+            color = android.graphics.Color.parseColor("#E0E0E0")
+        }
+        canvas.drawRoundRect(
+            shadowOffset, shadowOffset / 2, pillWidth + shadowOffset, pillHeight + shadowOffset / 2,
+            cornerRadius, cornerRadius, borderPaint
+        )
+    }
+
+    // Texto centrado
+    canvas.drawText(
+        label,
+        shadowOffset + paddingH,
+        shadowOffset / 2 + paddingV - fontMetrics.ascent,
+        textPaint
+    )
+
     return BitmapDescriptorFactory.fromBitmap(bitmap)
 }

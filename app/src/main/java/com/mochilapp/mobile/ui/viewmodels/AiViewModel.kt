@@ -17,8 +17,9 @@ data class ChatMessage(
     val isUser: Boolean
 )
 
-// Usamos gemini-1.5-flash-latest como modelo de alta compatibilidad
-private const val MOCHIBOT_MODEL = "gemini-1.5-flash-latest"
+// Alias que siempre apunta al modelo flash estable vigente; evita que el bot
+// se rompa cuando Google retire una versión específica (como pasó con 1.5)
+private const val MOCHIBOT_MODEL = "gemini-flash-latest"
 
 class AiViewModel(
     private val repository: FirebaseRepository,
@@ -75,6 +76,7 @@ class AiViewModel(
                 when {
                     errorMsg.contains("403") -> android.util.Log.e("MochiBot_Debug", "Causa: API Key restringida o sin permisos para Generative AI.")
                     errorMsg.contains("404") -> android.util.Log.e("MochiBot_Debug", "Causa: Modelo '$MOCHIBOT_MODEL' no encontrado en esta región.")
+                    errorMsg.contains("429") || errorMsg.contains("RESOURCE_EXHAUSTED") -> android.util.Log.e("MochiBot_Debug", "Causa: Créditos/cuota de Gemini agotados. Revisa facturación en https://ai.studio/projects")
                     errorMsg.contains("DEVELOPER_ERROR") -> android.util.Log.e("MochiBot_Debug", "Causa: Problema de configuración de Google Play Services o SHA-1.")
                 }
                 

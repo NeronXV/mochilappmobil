@@ -8,8 +8,20 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 class BookingViewModel(private val repository: FirebaseRepository, private val travelerEmail: String) : ViewModel() {
+    // Email de la sesión de Auth: es el que validan las reglas de Firestore y
+    // con el que se escriben las reservas (el del perfil puede diferir en mayúsculas)
+    private val effectiveEmail: String
+        get() = repository.getCurrentUserEmail() ?: travelerEmail
+
     private val _bookingResult = MutableStateFlow<String?>(null)
     val bookingResult: StateFlow<String?> = _bookingResult
+
+    private val _bookingError = MutableStateFlow<String?>(null)
+    val bookingError: StateFlow<String?> = _bookingError
+
+    fun clearBookingError() {
+        _bookingError.value = null
+    }
 
     private val _selectedDate = MutableStateFlow("")
     private val _currentServiceId = MutableStateFlow("")
@@ -22,7 +34,11 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
         else repository.getBookingsByServiceAndDate(id, date)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val myBookings: StateFlow<List<BookingFirestore>> = repository.getBookingsForUser(travelerEmail)
+    val myBookings: StateFlow<List<BookingFirestore>> = repository.getBookingsForUser(effectiveEmail)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Reservas recibidas como empresa (para el detalle de reserva del panel)
+    val ownerBookings: StateFlow<List<BookingFirestore>> = repository.getBookingsForOwner(effectiveEmail)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun updateAvailabilityQuery(serviceId: String, date: String) {
@@ -49,11 +65,11 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
             // Generate a professional confirmation code MOCHI-XXXXXX
             val randomPart = java.util.UUID.randomUUID().toString().take(6).uppercase()
             val code = "MOCHI-$randomPart"
-            
+
             val booking = BookingFirestore(
                 serviceId = serviceId,
                 serviceName = serviceName,
-                travelerEmail = travelerEmail,
+                travelerEmail = effectiveEmail,
                 travelerName = travelerName,
                 date = date,
                 slots = slots,
@@ -68,8 +84,17 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
                 discountAmount = discountAmount,
                 originalTotal = originalTotal
             )
-            val id = repository.addBooking(booking)
-            _bookingResult.value = id
+            try {
+                val id = repository.addBooking(booking)
+                _bookingResult.value = id
+            } catch (e: Exception) {
+                android.util.Log.e("BookingViewModel", "Error creating booking", e)
+                _bookingError.value = if (e.message?.contains("PERMISSION_DENIED") == true) {
+                    "No se pudo crear la reserva: permisos insuficientes. Intenta cerrar sesión y volver a entrar."
+                } else {
+                    "No se pudo crear la reserva. Revisa tu conexión e intenta de nuevo."
+                }
+            }
         }
     }
 

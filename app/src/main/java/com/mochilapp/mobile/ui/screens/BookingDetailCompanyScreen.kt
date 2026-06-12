@@ -29,8 +29,8 @@ fun BookingDetailCompanyScreen(
     userUid: String,
     onBack: () -> Unit
 ) {
-    val myBookings by bookingViewModel.myBookings.collectAsState()
-    val booking = myBookings.find { it.id == bookingId }
+    val ownerBookings by bookingViewModel.ownerBookings.collectAsState()
+    val booking = ownerBookings.find { it.id == bookingId }
     val scrollState = rememberScrollState()
 
     Scaffold(
@@ -98,7 +98,7 @@ fun BookingDetailCompanyScreen(
                         Spacer(Modifier.height(16.dp))
                         Row(modifier = Modifier.fillMaxWidth()) {
                             TicketInfoItem(t("people").uppercase(), "${booking.slots} pers.", Modifier.weight(1f))
-                            TicketInfoItem("TOTAL", "$${booking.totalPrice} USD", Modifier.weight(1f))
+                            TicketInfoItem("TOTAL", "$${booking.totalPrice} MXN", Modifier.weight(1f))
                         }
 
                         if (booking.discountAmount > 0) {

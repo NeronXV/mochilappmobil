@@ -114,7 +114,7 @@ fun PaymentScreen(
                                 }
                                 Spacer(Modifier.width(8.dp))
                                 Text(
-                                    text = "-$${b.discountAmount} USD",
+                                    text = "-$${b.discountAmount} MXN",
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFF2ECC71)
@@ -125,38 +125,26 @@ fun PaymentScreen(
                 }
             }
 
+            // Aviso de cómo funciona el pago (la captura de tarjeta la hace Stripe)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F1FF)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                // ... (Card fields remain same)
-                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    OutlinedTextField(
-                        value = "**** **** **** 4242", 
-                        onValueChange = {}, 
-                        label = { Text("Número de Tarjeta") }, 
-                        modifier = Modifier.fillMaxWidth(), 
-                        enabled = false,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = "12/26", 
-                            onValueChange = {}, 
-                            label = { Text("Exp") }, 
-                            modifier = Modifier.weight(1f), 
-                            enabled = false,
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                        OutlinedTextField(
-                            value = "123", 
-                            onValueChange = {}, 
-                            label = { Text("CVC") }, 
-                            modifier = Modifier.weight(1f), 
-                            enabled = false,
-                            shape = RoundedCornerShape(12.dp)
+                Row(
+                    modifier = Modifier.padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Lock, contentDescription = null, tint = Color(0xFF6772E5), modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(16.dp))
+                    Column {
+                        Text("Pago 100% seguro", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF3D429B))
+                        Text(
+                            "Al presionar el botón se abrirá la ventana segura de Stripe para ingresar tu tarjeta. Mochilapp nunca ve ni guarda tus datos bancarios.",
+                            fontSize = 12.sp,
+                            color = Color(0xFF5C5F8D),
+                            lineHeight = 17.sp
                         )
                     }
                 }
@@ -253,7 +241,7 @@ fun PaymentScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     Row(modifier = Modifier.fillMaxWidth()) {
                         TicketInfoItem("PERSONAS", "${currentBooking?.slots} pers.", Modifier.weight(1f))
-                        TicketInfoItem("TOTAL", "$${currentBooking?.totalPrice} USD", Modifier.weight(1f))
+                        TicketInfoItem("TOTAL", "$${currentBooking?.totalPrice} MXN", Modifier.weight(1f))
                     }
                     
                     Spacer(modifier = Modifier.height(24.dp))

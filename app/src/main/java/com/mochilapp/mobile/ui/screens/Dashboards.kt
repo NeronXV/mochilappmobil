@@ -433,42 +433,24 @@ fun PremiumFilterSection(
     onDateSelect: (String?) -> Unit
 ) {
     Column(modifier = Modifier.padding(16.dp)) {
-        // Top Search Bar + Filters Button
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            TextField(
-                value = searchQuery,
-                onValueChange = onSearchQueryChange,
-                placeholder = { Text("Search Tulum, Sushi, Hik", color = Color.Gray, fontSize = 14.sp) },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(52.dp),
-                shape = RoundedCornerShape(14.dp),
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color(0xFFF1F3F5),
-                    unfocusedContainerColor = Color(0xFFF1F3F5),
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
-                ),
-                singleLine = true
-            )
-
-            Button(
-                onClick = { /* Open full filters dialog in future */ },
-                modifier = Modifier.height(52.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007BFF)),
-                contentPadding = PaddingValues(horizontal = 16.dp)
-            ) {
-                Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(t("filters_button"), fontWeight = FontWeight.Bold)
-            }
-        }
+        // Top Search Bar
+        TextField(
+            value = searchQuery,
+            onValueChange = onSearchQueryChange,
+            placeholder = { Text(t("search_placeholder"), color = Color.Gray, fontSize = 14.sp) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+            shape = RoundedCornerShape(14.dp),
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = Color(0xFFF1F3F5),
+                unfocusedContainerColor = Color(0xFFF1F3F5),
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent
+            ),
+            singleLine = true
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -630,81 +612,85 @@ fun PremiumBottomNavigation(
     onProfileClick: () -> Unit,
     selectedItem: Int = 0
 ) {
+    val accent = MaterialTheme.colorScheme.primary
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
             .navigationBarsPadding()
-            .height(110.dp),
-        contentAlignment = Alignment.BottomCenter
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .height(96.dp)
     ) {
+        // Dock flotante
         Surface(
             modifier = Modifier
+                .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .height(80.dp),
-            color = Color.White,
-            tonalElevation = 12.dp,
-            shadowElevation = 24.dp
+                .height(68.dp),
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 16.dp
         ) {
             Row(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                NavigationItem(Icons.Default.Home, t("nav_home"), selectedItem == 0, onHomeClick)
-                NavigationItem(Icons.Default.Search, t("nav_search"), selectedItem == 1, onSearchClick)
-                
-                Spacer(modifier = Modifier.width(60.dp))
-                
-                NavigationItem(Icons.Default.ConfirmationNumber, t("nav_bookings"), selectedItem == 2, onBookingsClick)
-                NavigationItem(Icons.Default.Person, t("nav_profile"), selectedItem == 3, onProfileClick)
+                DockNavItem(Icons.Default.Home, t("nav_home"), selectedItem == 0, accent, onHomeClick)
+                DockNavItem(Icons.Default.Search, t("nav_search"), selectedItem == 1, accent, onSearchClick)
+
+                Spacer(modifier = Modifier.width(56.dp))
+
+                DockNavItem(Icons.Default.ConfirmationNumber, t("nav_bookings"), selectedItem == 2, accent, onBookingsClick)
+                DockNavItem(Icons.Default.Person, t("nav_profile"), selectedItem == 3, accent, onProfileClick)
             }
         }
 
-        // Floating Action Button (Map)
+        // FAB del mapa con degradado azul → verde (marca Mochilapp)
         Box(
             modifier = Modifier
-                .offset(y = (-35).dp)
-                .size(72.dp)
-                .background(Color.White.copy(alpha = 0.3f), CircleShape) // Translucent outline
-                .padding(4.dp)
+                .align(Alignment.TopCenter)
+                .size(60.dp)
+                .shadow(12.dp, CircleShape)
+                .clip(CircleShape)
+                .background(
+                    Brush.linearGradient(
+                        listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)
+                    )
+                )
+                .clickable(onClick = onMapClick),
+            contentAlignment = Alignment.Center
         ) {
-            FloatingActionButton(
-                onClick = onMapClick,
-                modifier = Modifier.fillMaxSize(),
-                shape = CircleShape,
-                containerColor = Color(0xFF007BFF),
-                contentColor = Color.White,
-                elevation = FloatingActionButtonDefaults.elevation(12.dp)
-            ) {
-                Icon(Icons.Default.Map, contentDescription = "Map", modifier = Modifier.size(32.dp))
-            }
+            Icon(Icons.Default.Map, contentDescription = "Map", tint = Color.White, modifier = Modifier.size(28.dp))
         }
     }
 }
 
+// Ítem del dock: solo icono; el activo se resalta con una píldora de color
 @Composable
-fun NavigationItem(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(8.dp)
+fun DockNavItem(
+    icon: ImageVector,
+    label: String,
+    selected: Boolean,
+    accent: Color,
+    onClick: () -> Unit
+) {
+    val tint by androidx.compose.animation.animateColorAsState(
+        targetValue = if (selected) accent else Color(0xFFADB5BD),
+        label = "dockTint"
+    )
+    val background by androidx.compose.animation.animateColorAsState(
+        targetValue = if (selected) accent.copy(alpha = 0.12f) else Color.Transparent,
+        label = "dockBg"
+    )
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(18.dp),
+        color = background
     ) {
-        Icon(
-            icon,
-            contentDescription = label,
-            tint = if (selected) Color(0xFF007BFF) else Color(0xFFADB5BD),
-            modifier = Modifier.size(26.dp)
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            label,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = if (selected) Color(0xFF007BFF) else Color(0xFFADB5BD)
-        )
+        Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(26.dp))
+        }
     }
 }
 
@@ -810,9 +796,22 @@ fun PremiumServiceCard(
                     }
                     Spacer(Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFFFD43B), modifier = Modifier.size(18.dp))
-                        Text(" 4.9 ", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Black)
-                        Text("(120 reseñas)", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                        if (service.reviewCount > 0) {
+                            Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFFFD43B), modifier = Modifier.size(18.dp))
+                            Text(
+                                " ${String.format(java.util.Locale.US, "%.1f", service.rating)} ",
+                                color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Black
+                            )
+                            Text("(${service.reviewCount} reseñas)", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                        } else {
+                            Surface(color = Color.White.copy(alpha = 0.2f), shape = RoundedCornerShape(8.dp)) {
+                                Text(
+                                    "NUEVO",
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black
+                                )
+                            }
+                        }
                         Spacer(Modifier.weight(1f))
                         Icon(Icons.Default.Place, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                         Text(service.location, color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
@@ -832,13 +831,23 @@ fun CompanyDashboard(
     onAiClick: () -> Unit,
     onLogout: () -> Unit,
     onProfileClick: () -> Unit,
-    onBookingClick: (String) -> Unit
+    onBookingClick: (String) -> Unit,
+    onBoatModuleClick: () -> Unit = {},
+    onCommunityClick: () -> Unit = {}
 ) {
     val services by viewModel.myServices.collectAsState()
     val bookings by viewModel.myBookings.collectAsState()
     val revenue by viewModel.totalRevenue.collectAsState()
+    val monthlyRevenue by viewModel.monthlyRevenue.collectAsState()
     val pendingCount by viewModel.pendingBookingsCount.collectAsState()
+    val paidCount by viewModel.paidBookingsCount.collectAsState()
+    val cancelledCount by viewModel.cancelledBookingsCount.collectAsState()
     val todayCount by viewModel.todayBookingsCount.collectAsState()
+    val activePromosCount by viewModel.activePromosCount.collectAsState()
+    val recentBookings by viewModel.recentBookings.collectAsState()
+    val filteredBookings by viewModel.filteredBookings.collectAsState()
+    val bookingStatusFilter by viewModel.bookingStatusFilter.collectAsState()
+    val bookingSearchQuery by viewModel.bookingSearchQuery.collectAsState()
     val userProfile by authViewModel.userProfile.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
     
@@ -866,19 +875,15 @@ fun CompanyDashboard(
                         ) 
                     }
                 },
-                actions = {
-                    if (selectedTab == 0) {
-                        IconButton(onClick = { /* Notifications */ }) {
-                            Icon(Icons.Default.NotificationsNone, contentDescription = "Notificaciones", tint = companyTeal)
-                        }
-                    }
-                }
             )
         },
         bottomBar = {
             CompanyBottomNavigation(
                 selectedItem = selectedTab,
-                onTabSelected = { viewModel.selectTab(it) }
+                onTabSelected = { tab ->
+                    // Comunidad abre el feed social real en lugar del placeholder
+                    if (tab == 3) onCommunityClick() else viewModel.selectTab(tab)
+                }
             )
         }
     ) { padding ->
@@ -895,22 +900,28 @@ fun CompanyDashboard(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
-                        // Notification Banner
-                        item {
-                            Surface(
-                                color = MaterialTheme.colorScheme.secondaryContainer,
-                                shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                        // Notification Banner (solo si hay reservas pendientes reales)
+                        if (pendingCount > 0) {
+                            item {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    shape = RoundedCornerShape(16.dp),
+                                    modifier = Modifier.fillMaxWidth().clickable { viewModel.selectTab(2) }
                                 ) {
-                                    Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
-                                    Spacer(Modifier.width(12.dp))
-                                    Column {
-                                        Text(t("company_pending_requests"), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                                        Text("Tour en lancha • 2 personas para mañana", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f))
+                                    Row(
+                                        modifier = Modifier.padding(16.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                                        Spacer(Modifier.width(12.dp))
+                                        Column {
+                                            Text(t("company_pending_requests"), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                            Text(
+                                                if (pendingCount == 1) "1 reserva esperando confirmación" else "$pendingCount reservas esperando confirmación",
+                                                fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -947,7 +958,7 @@ fun CompanyDashboard(
                         item {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Button(
-                                    onClick = onAddService,
+                                    onClick = { viewModel.startNewService(); onAddService() },
                                     colors = ButtonDefaults.buttonColors(containerColor = companyTeal),
                                     shape = RoundedCornerShape(20.dp),
                                     modifier = Modifier.height(48.dp).weight(1f)
@@ -972,6 +983,10 @@ fun CompanyDashboard(
                                 if (showPromoDialog) {
                                     var promoText by remember { mutableStateOf("") }
                                     var discountText by remember { mutableStateOf("50%") }
+                                    var promoServiceId by remember { mutableStateOf("") }
+                                    var serviceMenuExpanded by remember { mutableStateOf(false) }
+                                    val visibleServices = services.filter { it.isVisible }
+                                    val selectedPromoService = visibleServices.find { it.id == promoServiceId }
 
                                     AlertDialog(
                                         onDismissRequest = { showPromoDialog = false },
@@ -979,6 +994,39 @@ fun CompanyDashboard(
                                         text = {
                                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                                 Text(t("flash_promo_dialog_desc"), fontSize = 12.sp, color = Color.Gray)
+
+                                                // Servicio al que se liga la oferta (obligatorio para
+                                                // que el viajero pueda reservar al tocarla)
+                                                Box {
+                                                    OutlinedTextField(
+                                                        value = selectedPromoService?.name ?: "",
+                                                        onValueChange = {},
+                                                        readOnly = true,
+                                                        label = { Text("Servicio en oferta") },
+                                                        placeholder = { Text("Selecciona un servicio") },
+                                                        trailingIcon = {
+                                                            IconButton(onClick = { serviceMenuExpanded = true }) {
+                                                                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                                            }
+                                                        },
+                                                        modifier = Modifier.fillMaxWidth().clickable { serviceMenuExpanded = true }
+                                                    )
+                                                    DropdownMenu(
+                                                        expanded = serviceMenuExpanded,
+                                                        onDismissRequest = { serviceMenuExpanded = false }
+                                                    ) {
+                                                        visibleServices.forEach { service ->
+                                                            DropdownMenuItem(
+                                                                text = { Text(service.name) },
+                                                                onClick = {
+                                                                    promoServiceId = service.id
+                                                                    serviceMenuExpanded = false
+                                                                }
+                                                            )
+                                                        }
+                                                    }
+                                                }
+
                                                 OutlinedTextField(
                                                     value = promoText,
                                                     onValueChange = { promoText = it },
@@ -989,15 +1037,22 @@ fun CompanyDashboard(
                                                     onValueChange = { discountText = it },
                                                     label = { Text(t("flash_promo_discount_label")) }
                                                 )
+
+                                                Text(
+                                                    "La oferta estará vigente 24 horas y llegará a todos los viajeros.",
+                                                    fontSize = 11.sp,
+                                                    color = Color.Gray
+                                                )
                                             }
                                         },
                                         confirmButton = {
-                                            Button(onClick = {
-                                                if (promoText.isNotBlank()) {
-                                                    viewModel.sendFlashPromo(promoText, discountText, userProfile?.name ?: "Empresa")
+                                            Button(
+                                                onClick = {
+                                                    viewModel.sendFlashPromo(promoText, discountText, userProfile?.name ?: "Empresa", promoServiceId)
                                                     showPromoDialog = false
-                                                }
-                                            }) { Text(t("send")) }
+                                                },
+                                                enabled = promoText.isNotBlank() && promoServiceId.isNotEmpty()
+                                            ) { Text(t("send")) }
                                         },
                                         dismissButton = {
                                             TextButton(onClick = { showPromoDialog = false }) { Text(t("cancel")) }
@@ -1007,22 +1062,93 @@ fun CompanyDashboard(
                             }
                         }
 
-                        // Stats Grid
+                        // Módulo de Embarcaciones (visible solo si la empresa tiene servicios BOAT_TOUR)
+                        if (services.any { it.type == "BOAT_TOUR" }) {
+                            item {
+                                Surface(
+                                    onClick = onBoatModuleClick,
+                                    color = Color(0xFF0F172A),
+                                    shape = RoundedCornerShape(20.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(20.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            color = Color(0xFF06B6D4).copy(alpha = 0.15f),
+                                            shape = RoundedCornerShape(14.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.DirectionsBoat,
+                                                contentDescription = null,
+                                                tint = Color(0xFF22D3EE),
+                                                modifier = Modifier.padding(12.dp).size(28.dp)
+                                            )
+                                        }
+                                        Spacer(Modifier.width(16.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text("Control de Embarcaciones", color = Color.White, fontWeight = FontWeight.Black, fontSize = 15.sp)
+                                            Text(
+                                                "Mapa de asientos, ocupación y cupos en vivo",
+                                                color = Color(0xFF94A3B8),
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF22D3EE))
+                                    }
+                                }
+                            }
+                        }
+
+                        // Stats Grid (KPIs equivalentes al panel web)
                         item {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                                 CompanyStatCard(
                                     modifier = Modifier.weight(1f),
                                     icon = Icons.Default.CalendarMonth,
                                     label = t("company_bookings_today"),
-                                    value = todayCount.toString(),
-                                    trend = if (todayCount > 0) "+1" else null
+                                    value = todayCount.toString()
                                 )
                                 CompanyStatCard(
                                     modifier = Modifier.weight(1f),
                                     icon = Icons.Default.AssignmentLate,
                                     label = t("company_pending_requests"),
                                     value = pendingCount.toString(),
-                                    actionLabel = if (pendingCount > 0) "Revisar" else null
+                                    actionLabel = if (pendingCount > 0) "Revisar" else null,
+                                    onActionClick = { viewModel.selectTab(2) }
+                                )
+                            }
+                        }
+                        item {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                                CompanyStatCard(
+                                    modifier = Modifier.weight(1f),
+                                    icon = Icons.Default.CreditCard,
+                                    label = "Ingresos del Mes",
+                                    value = formatMxn(monthlyRevenue)
+                                )
+                                CompanyStatCard(
+                                    modifier = Modifier.weight(1f),
+                                    icon = Icons.Default.CheckCircle,
+                                    label = "Reservas Pagadas",
+                                    value = paidCount.toString()
+                                )
+                            }
+                        }
+                        item {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                                CompanyStatCard(
+                                    modifier = Modifier.weight(1f),
+                                    icon = Icons.Default.Storefront,
+                                    label = "Servicios Activos",
+                                    value = services.count { it.isVisible }.toString()
+                                )
+                                CompanyStatCard(
+                                    modifier = Modifier.weight(1f),
+                                    icon = Icons.Default.FlashOn,
+                                    label = "Promos Activas",
+                                    value = activePromosCount.toString()
                                 )
                             }
                         }
@@ -1045,7 +1171,7 @@ fun CompanyDashboard(
                                     }
                                     Spacer(Modifier.height(16.dp))
                                     Row(verticalAlignment = Alignment.Bottom) {
-                                        val totalCapacity = services.sumOf { it.capacity }
+                                        val totalCapacity = services.filter { it.isVisible }.sumOf { it.capacity }
                                         val usedSlots = bookings.filter { it.status != "CANCELLED" }.sumOf { it.slots }
                                         val freeSlots = if (totalCapacity > 0) totalCapacity - usedSlots else 0
                                         
@@ -1064,6 +1190,47 @@ fun CompanyDashboard(
                                 }
                             }
                         }
+
+                        // Últimas Reservas
+                        item {
+                            Column {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Últimas Reservas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                    if (bookings.isNotEmpty()) {
+                                        TextButton(onClick = { viewModel.selectTab(2) }) {
+                                            Text("Ver todas", color = companyTeal, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                                Spacer(Modifier.height(8.dp))
+                                if (recentBookings.isEmpty()) {
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.surfaceVariant,
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(24.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Icon(Icons.Default.Schedule, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(32.dp))
+                                            Spacer(Modifier.height(8.dp))
+                                            Text("Sin reservas registradas aún.", fontSize = 12.sp, color = Color.Gray)
+                                        }
+                                    }
+                                } else {
+                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        recentBookings.forEach { booking ->
+                                            RealBookingListItem(booking, onClick = { onBookingClick(booking.id) })
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 1 -> { // Servicios
@@ -1075,7 +1242,7 @@ fun CompanyDashboard(
                         item {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Text(t("nav_services"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                                Button(onClick = onAddService, shape = RoundedCornerShape(12.dp)) {
+                                Button(onClick = { viewModel.startNewService(); onAddService() }, shape = RoundedCornerShape(12.dp)) {
                                     Icon(Icons.Default.Add, contentDescription = null)
                                     Text(t("company_new_service"), fontSize = 12.sp)
                                 }
@@ -1089,7 +1256,16 @@ fun CompanyDashboard(
                             }
                         } else {
                             items(services) { service ->
-                                PremiumServiceCard(service = service, onClick = { /* View details/edit */ })
+                                CompanyServiceCard(
+                                    service = service,
+                                    onEdit = {
+                                        viewModel.startEditingService(service)
+                                        onAddService()
+                                    },
+                                    onToggleVisibility = {
+                                        viewModel.setServiceVisibility(service.id, !service.isVisible)
+                                    }
+                                )
                             }
                         }
                     }
@@ -1101,7 +1277,34 @@ fun CompanyDashboard(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         item {
-                            Text(t("nav_bookings"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                            var showVerifier by remember { mutableStateOf(false) }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "${t("nav_bookings")} (${bookings.size})",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Button(
+                                    onClick = { showVerifier = true },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = companyTeal)
+                                ) {
+                                    Icon(Icons.Default.QrCodeScanner, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Verificar Ticket", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            if (showVerifier) {
+                                TicketVerifierDialog(
+                                    bookings = bookings,
+                                    onCheckIn = { viewModel.checkInBooking(it) },
+                                    onDismiss = { showVerifier = false }
+                                )
+                            }
                         }
                         if (bookings.isEmpty()) {
                             item {
@@ -1110,8 +1313,86 @@ fun CompanyDashboard(
                                 }
                             }
                         } else {
-                            items(bookings) { booking ->
-                                RealBookingListItem(booking, onClick = { onBookingClick(booking.id) })
+                            // Resumen por estado
+                            item {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    BookingStatusSummaryCard(
+                                        modifier = Modifier.weight(1f),
+                                        label = "Pendientes",
+                                        count = pendingCount,
+                                        icon = Icons.Default.Schedule,
+                                        tint = Color(0xFFD68910),
+                                        background = Color(0xFFFDEBD0)
+                                    )
+                                    BookingStatusSummaryCard(
+                                        modifier = Modifier.weight(1f),
+                                        label = "Pagadas",
+                                        count = paidCount,
+                                        icon = Icons.Default.CheckCircle,
+                                        tint = Color(0xFF1D8348),
+                                        background = Color(0xFFD4EFDF)
+                                    )
+                                    BookingStatusSummaryCard(
+                                        modifier = Modifier.weight(1f),
+                                        label = "Canceladas",
+                                        count = cancelledCount,
+                                        icon = Icons.Default.Cancel,
+                                        tint = Color(0xFFC0392B),
+                                        background = Color(0xFFFADBD8)
+                                    )
+                                }
+                            }
+
+                            // Búsqueda
+                            item {
+                                TextField(
+                                    value = bookingSearchQuery,
+                                    onValueChange = { viewModel.setBookingSearchQuery(it) },
+                                    placeholder = { Text("Buscar viajero o servicio...", color = Color.Gray, fontSize = 13.sp) },
+                                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                                    shape = RoundedCornerShape(14.dp),
+                                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        focusedIndicatorColor = Color.Transparent,
+                                        unfocusedIndicatorColor = Color.Transparent
+                                    ),
+                                    singleLine = true
+                                )
+                            }
+
+                            // Filtros por estado
+                            item {
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    items(
+                                        listOf(
+                                            "ALL" to "Todas",
+                                            "PENDING" to "Pendientes",
+                                            "PAID" to "Pagadas",
+                                            "CANCELLED" to "Canceladas"
+                                        )
+                                    ) { (status, label) ->
+                                        FilterChip(
+                                            selected = bookingStatusFilter == status,
+                                            onClick = { viewModel.setBookingStatusFilter(status) },
+                                            label = { Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold) },
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (filteredBookings.isEmpty()) {
+                                item {
+                                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) {
+                                        Text("Ninguna reserva coincide con la búsqueda.", color = Color.Gray, fontSize = 13.sp)
+                                    }
+                                }
+                            } else {
+                                items(filteredBookings) { booking ->
+                                    RealBookingListItem(booking, onClick = { onBookingClick(booking.id) })
+                                }
                             }
                         }
                     }
@@ -1185,6 +1466,206 @@ fun CompanyDashboard(
     }
 }
 
+fun formatMxn(amount: Double): String {
+    val formatted = java.text.NumberFormat.getNumberInstance(java.util.Locale("es", "MX")).apply {
+        maximumFractionDigits = 0
+    }.format(amount)
+    return "$$formatted"
+}
+
+@Composable
+fun BookingStatusSummaryCard(
+    modifier: Modifier = Modifier,
+    label: String,
+    count: Int,
+    icon: ImageVector,
+    tint: Color,
+    background: Color
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = background
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.height(8.dp))
+            Text(count.toString(), style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black), color = tint)
+            Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = tint.copy(alpha = 0.8f), maxLines = 1)
+        }
+    }
+}
+
+// Verificador de tickets: la empresa teclea el código MOCHI-XXXXXX del viajero,
+// se valida contra sus reservas y permite confirmar la llegada (check-in)
+@Composable
+fun TicketVerifierDialog(
+    bookings: List<com.mochilapp.mobile.data.BookingFirestore>,
+    onCheckIn: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var codeInput by remember { mutableStateOf("") }
+    var searched by remember { mutableStateOf(false) }
+    var checkedIn by remember { mutableStateOf(false) }
+
+    val normalizedCode = codeInput.trim().uppercase()
+    val found = if (searched) bookings.find { it.confirmationCode.equals(normalizedCode, ignoreCase = true) } else null
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.QrCodeScanner, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
+                Spacer(Modifier.width(8.dp))
+                Text("Verificar Ticket", fontWeight = FontWeight.Black)
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                OutlinedTextField(
+                    value = codeInput,
+                    onValueChange = {
+                        codeInput = it.uppercase()
+                        searched = false
+                        checkedIn = false
+                    },
+                    label = { Text("Código del viajero (MOCHI-XXXXXX)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+
+                if (searched && !checkedIn) {
+                    if (found == null) {
+                        Surface(color = Color(0xFFFADBD8), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Cancel, contentDescription = null, tint = Color(0xFFC0392B), modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Código no encontrado en tus reservas.", fontSize = 13.sp, color = Color(0xFFC0392B), fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    } else {
+                        val (statusColor, statusBg, statusLabel) = when (found.status) {
+                            "PAID" -> Triple(Color(0xFF1D8348), Color(0xFFD4EFDF), "PAGADA • Lista para check-in")
+                            "PENDING" -> Triple(Color(0xFFD68910), Color(0xFFFDEBD0), "PENDIENTE DE PAGO")
+                            "CHECKED_IN" -> Triple(Color(0xFF2471A3), Color(0xFFD4E6F1), "YA HIZO CHECK-IN")
+                            "COMPLETED" -> Triple(Color(0xFF1D8348), Color(0xFFD4EFDF), "SERVICIO COMPLETADO")
+                            "CANCELLED" -> Triple(Color(0xFFC0392B), Color(0xFFFADBD8), "CANCELADA")
+                            else -> Triple(Color.Gray, Color(0xFFF1F3F5), found.status)
+                        }
+                        Surface(color = statusBg, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(statusLabel, fontSize = 11.sp, fontWeight = FontWeight.Black, color = statusColor)
+                                Spacer(Modifier.height(6.dp))
+                                Text(found.travelerName.ifEmpty { found.travelerEmail }, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text(
+                                    "${found.serviceName} • ${found.date}" +
+                                        (if (found.departureTime.isNotEmpty()) " • ${found.departureTime}" else ""),
+                                    fontSize = 12.sp, color = Color.DarkGray
+                                )
+                                Text("${found.slots} persona(s) • ${formatMxn(found.totalPrice)}", fontSize = 12.sp, color = Color.DarkGray)
+                            }
+                        }
+                    }
+                }
+
+                if (checkedIn) {
+                    Surface(color = Color(0xFFD4EFDF), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF1D8348), modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("¡Check-in realizado! Bienvenido a bordo. 🎒", fontSize = 13.sp, color = Color(0xFF1D8348), fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (!checkedIn && searched && found != null && found.status == "PAID") {
+                Button(
+                    onClick = {
+                        onCheckIn(found.id)
+                        checkedIn = true
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2ECC71))
+                ) {
+                    Icon(Icons.Default.HowToReg, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Confirmar llegada", fontWeight = FontWeight.Bold)
+                }
+            } else if (!checkedIn) {
+                Button(
+                    onClick = { searched = true },
+                    enabled = normalizedCode.isNotBlank()
+                ) { Text("Verificar", fontWeight = FontWeight.Bold) }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(if (checkedIn) "Cerrar" else "Cancelar") }
+        }
+    )
+}
+
+// Tarjeta de servicio para el panel de empresa, con acciones de gestión
+@Composable
+fun CompanyServiceCard(
+    service: ServiceFirestore,
+    onEdit: () -> Unit,
+    onToggleVisibility: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column {
+            Box {
+                PremiumServiceCard(service = service, onClick = onEdit)
+                if (!service.isVisible) {
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.6f),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.VisibilityOff, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("OCULTO", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                        }
+                    }
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onEdit) {
+                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Editar", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+                TextButton(onClick = onToggleVisibility) {
+                    Icon(
+                        if (service.isVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        if (service.isVisible) "Ocultar" else "Mostrar",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun CompanyStatCard(
     modifier: Modifier = Modifier,
@@ -1192,7 +1673,8 @@ fun CompanyStatCard(
     label: String,
     value: String,
     trend: String? = null,
-    actionLabel: String? = null
+    actionLabel: String? = null,
+    onActionClick: () -> Unit = {}
 ) {
     Card(
         modifier = modifier,
@@ -1217,7 +1699,7 @@ fun CompanyStatCard(
                     Text(trend, color = Color(0xFF27AE60), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
                 if (actionLabel != null) {
-                    Text(actionLabel, color = MaterialTheme.colorScheme.tertiary, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { })
+                    Text(actionLabel, color = MaterialTheme.colorScheme.tertiary, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable(onClick = onActionClick))
                 }
             }
         }
@@ -1258,18 +1740,27 @@ fun RealBookingListItem(booking: com.mochilapp.mobile.data.BookingFirestore, onC
                     }
                 }
             }
-            Surface(
-                color = if (booking.status == "PENDING") Color(0xFFFDEBD0) else Color(0xFFD4EFDF),
-                shape = CircleShape,
-                modifier = Modifier.size(28.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        if (booking.status == "PENDING") Icons.Default.Schedule else Icons.Default.Check,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = if (booking.status == "PENDING") Color(0xFFD68910) else Color(0xFF1D8348)
-                    )
+            Column(horizontalAlignment = Alignment.End) {
+                Text(formatMxn(booking.totalPrice), fontWeight = FontWeight.Black, fontSize = 13.sp)
+                Spacer(Modifier.height(4.dp))
+                val (bg, fg, statusIcon) = when (booking.status) {
+                    "PENDING" -> Triple(Color(0xFFFDEBD0), Color(0xFFD68910), Icons.Default.Schedule)
+                    "CANCELLED" -> Triple(Color(0xFFFADBD8), Color(0xFFC0392B), Icons.Default.Close)
+                    else -> Triple(Color(0xFFD4EFDF), Color(0xFF1D8348), Icons.Default.Check)
+                }
+                Surface(
+                    color = bg,
+                    shape = CircleShape,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            statusIcon,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = fg
+                        )
+                    }
                 }
             }
         }
@@ -1281,57 +1772,31 @@ fun CompanyBottomNavigation(
     selectedItem: Int,
     onTabSelected: (Int) -> Unit
 ) {
-    Surface(
+    val accent = MaterialTheme.colorScheme.secondary
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .height(80.dp),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 8.dp,
-        shadowElevation = 16.dp
-    ) {
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            CompanyNavItem(Icons.Default.GridView, t("nav_panel"), selectedItem == 0, { onTabSelected(0) })
-            CompanyNavItem(Icons.Default.Storefront, t("nav_services"), selectedItem == 1, { onTabSelected(1) })
-            CompanyNavItem(Icons.Default.CalendarMonth, t("nav_bookings"), selectedItem == 2, { onTabSelected(2) })
-            CompanyNavItem(Icons.Default.Groups, t("nav_community"), selectedItem == 3, { onTabSelected(3) })
-            CompanyNavItem(Icons.Default.PersonOutline, t("nav_profile"), selectedItem == 4, { onTabSelected(4) })
-        }
-    }
-}
-
-@Composable
-fun CompanyNavItem(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
-    val activeColor = MaterialTheme.colorScheme.tertiary
-    val inactiveColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(8.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Surface(
-            color = if (selected) activeColor.copy(alpha = 0.1f) else Color.Transparent,
-            shape = CircleShape,
-            modifier = Modifier.size(40.dp)
+            modifier = Modifier.fillMaxWidth().height(68.dp),
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 16.dp
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    icon,
-                    contentDescription = label,
-                    tint = if (selected) activeColor else inactiveColor,
-                    modifier = Modifier.size(24.dp)
-                )
+            Row(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                DockNavItem(Icons.Default.GridView, t("nav_panel"), selectedItem == 0, accent) { onTabSelected(0) }
+                DockNavItem(Icons.Default.Storefront, t("nav_services"), selectedItem == 1, accent) { onTabSelected(1) }
+                DockNavItem(Icons.Default.CalendarMonth, t("nav_bookings"), selectedItem == 2, accent) { onTabSelected(2) }
+                DockNavItem(Icons.Default.Groups, t("nav_community"), selectedItem == 3, accent) { onTabSelected(3) }
+                DockNavItem(Icons.Default.PersonOutline, t("nav_profile"), selectedItem == 4, accent) { onTabSelected(4) }
             }
         }
-        Text(
-            label,
-            fontSize = 10.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = if (selected) activeColor else inactiveColor
-        )
     }
 }

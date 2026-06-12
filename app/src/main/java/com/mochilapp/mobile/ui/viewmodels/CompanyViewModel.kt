@@ -4,11 +4,42 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mochilapp.mobile.data.BookingFirestore
+import com.mochilapp.mobile.data.CompanyType
 import com.mochilapp.mobile.data.PromoFirestore
 import com.mochilapp.mobile.data.ServiceFirestore
 import com.mochilapp.mobile.repository.FirebaseRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+
+// Borrador del formulario de nuevo servicio. Vive en el ViewModel para que
+// los datos sobrevivan la navegación al mapa y de regreso.
+data class ServiceDraft(
+    val name: String = "",
+    val description: String = "",
+    val price: String = "",
+    val location: String = "",
+    val type: CompanyType = CompanyType.HOTEL,
+    val imageUri: Uri? = null,
+    val capacity: String = "",
+    val departureTimes: String = "",
+    val meetingPoint: String = "",
+    val checkIn: String = "",
+    val checkOut: String = "",
+    val amenities: String = "",
+    val rules: String = "",
+    val routeName: String = "",
+    val origin: String = "",
+    val destination: String = "",
+    val vehicleName: String = "",
+    val driverName: String = "",
+    val guideName: String = "",
+    val businessHours: String = "",
+    val isOpen: Boolean = true,
+    val address: String = "",
+    // null = creando servicio nuevo; con valor = editando ese servicio
+    val editingServiceId: String? = null,
+    val existingImageUrl: String = ""
+)
 
 class CompanyViewModel(
     private val repository: FirebaseRepository, 
@@ -42,16 +73,76 @@ class CompanyViewModel(
         _selectedLng.value = 0.0
     }
 
+    private val _serviceDraft = MutableStateFlow(ServiceDraft())
+    val serviceDraft: StateFlow<ServiceDraft> = _serviceDraft
+
+    fun updateServiceDraft(draft: ServiceDraft) {
+        _serviceDraft.value = draft
+    }
+
+    fun clearServiceDraft() {
+        _serviceDraft.value = ServiceDraft()
+        clearCoordinates()
+    }
+
+    // Incluye servicios ocultos para que la empresa pueda gestionarlos;
+    // el marketplace del viajero ya filtra por isVisible por su cuenta
     val myServices: StateFlow<List<ServiceFirestore>> = repository.getServicesByOwner(ownerEmail)
-        .map { list -> list.filter { it.isVisible } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val myBookings: StateFlow<List<BookingFirestore>> = repository.getBookingsForOwner(ownerEmail)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val myPromos: StateFlow<List<PromoFirestore>> = repository.getPromosByOwner(ownerEmail)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val activePromosCount: StateFlow<Int> = myPromos.map { list ->
+        list.count { it.isActive }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
     val totalRevenue: StateFlow<Double> = myBookings.map { list ->
         list.filter { it.status == "PAID" }.sumOf { it.totalPrice }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    // Ingresos del mes: reservas PAID cuya fecha (YYYY-MM-DD) cae en el mes actual
+    val monthlyRevenue: StateFlow<Double> = myBookings.map { list ->
+        val monthPrefix = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.getDefault()).format(java.util.Date())
+        list.filter { it.status == "PAID" && it.date.startsWith(monthPrefix) }.sumOf { it.totalPrice }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val paidBookingsCount: StateFlow<Int> = myBookings.map { list ->
+        list.count { it.status == "PAID" }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val cancelledBookingsCount: StateFlow<Int> = myBookings.map { list ->
+        list.count { it.status == "CANCELLED" }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val recentBookings: StateFlow<List<BookingFirestore>> = myBookings.map { list ->
+        list.sortedByDescending { it.date }.take(5)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // --- Filtros de la pestaña Reservas ---
+    private val _bookingStatusFilter = MutableStateFlow("ALL")
+    val bookingStatusFilter: StateFlow<String> = _bookingStatusFilter
+
+    private val _bookingSearchQuery = MutableStateFlow("")
+    val bookingSearchQuery: StateFlow<String> = _bookingSearchQuery
+
+    fun setBookingStatusFilter(status: String) { _bookingStatusFilter.value = status }
+    fun setBookingSearchQuery(query: String) { _bookingSearchQuery.value = query }
+
+    val filteredBookings: StateFlow<List<BookingFirestore>> =
+        combine(myBookings, _bookingStatusFilter, _bookingSearchQuery) { list, status, query ->
+            list.filter { booking ->
+                val matchesStatus = status == "ALL" || booking.status == status
+                val matchesSearch = query.isBlank() ||
+                    booking.travelerEmail.contains(query, ignoreCase = true) ||
+                    booking.travelerName.contains(query, ignoreCase = true) ||
+                    booking.serviceName.contains(query, ignoreCase = true)
+                matchesStatus && matchesSearch
+            }.sortedByDescending { it.date }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val pendingBookingsCount: StateFlow<Int> = myBookings.map { list ->
         list.count { it.status == "PENDING" }
@@ -91,15 +182,86 @@ class CompanyViewModel(
         }
     }
 
-    fun sendFlashPromo(content: String, discount: String, companyName: String) {
+    fun setServiceVisibility(id: String, isVisible: Boolean) {
         viewModelScope.launch {
+            repository.updateServiceVisibility(id, isVisible)
+        }
+    }
+
+    // Prepara el borrador con los datos de un servicio existente para editarlo
+    fun startEditingService(service: ServiceFirestore) {
+        _serviceDraft.value = ServiceDraft(
+            name = service.name,
+            description = service.description,
+            price = if (service.price % 1.0 == 0.0) service.price.toInt().toString() else service.price.toString(),
+            location = service.location,
+            type = runCatching { CompanyType.valueOf(service.type) }.getOrDefault(CompanyType.HOTEL),
+            capacity = if (service.capacity > 0) service.capacity.toString() else "",
+            departureTimes = service.departureTimes.joinToString(", "),
+            meetingPoint = service.meetingPoint,
+            checkIn = service.checkIn,
+            checkOut = service.checkOut,
+            amenities = service.amenities.joinToString(", "),
+            rules = service.rules.joinToString(", "),
+            routeName = service.routeName,
+            origin = service.origin,
+            destination = service.destination,
+            vehicleName = service.vehicleName,
+            driverName = service.driverName,
+            guideName = service.guideName,
+            businessHours = service.businessHours["general"] ?: "",
+            isOpen = service.isOpen,
+            address = service.address,
+            editingServiceId = service.id,
+            existingImageUrl = service.imageUrl
+        )
+        updateCoordinates(service.latitude, service.longitude)
+    }
+
+    // Limpia un borrador de edición pendiente antes de crear un servicio nuevo
+    fun startNewService() {
+        if (_serviceDraft.value.editingServiceId != null) clearServiceDraft()
+    }
+
+    fun updateService(id: String, service: ServiceFirestore, imageUri: Uri? = null, onComplete: () -> Unit) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                repository.updateService(id, service, imageUri)
+                onComplete()
+            } catch (e: Exception) {
+                // Error handling
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    // Check-in de una reserva verificada por código de ticket
+    fun checkInBooking(bookingId: String) {
+        viewModelScope.launch {
+            repository.updateBookingFields(bookingId, mapOf(
+                "status" to "CHECKED_IN",
+                "checkedInAt" to System.currentTimeMillis(),
+                "checkedInBy" to ownerUid
+            ))
+        }
+    }
+
+    fun sendFlashPromo(content: String, discount: String, companyName: String, serviceId: String) {
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
             val promo = PromoFirestore(
+                serviceId = serviceId,
                 ownerEmail = ownerEmail,
                 companyName = companyName,
                 content = content,
                 discount = discount,
+                discountPercent = discount.filter { it.isDigit() }.toIntOrNull() ?: 0,
+                promoCode = "FLASH-${java.util.UUID.randomUUID().toString().take(4).uppercase()}",
                 isActive = true,
-                timestamp = System.currentTimeMillis()
+                timestamp = now,
+                expiresAt = now + 24 * 60 * 60 * 1000L // promo relámpago: vigencia 24h
             )
             repository.addPromo(promo)
         }
