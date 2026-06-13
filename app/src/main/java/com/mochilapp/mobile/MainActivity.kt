@@ -102,6 +102,7 @@ fun MochilappApp(currentLanguage: AppLanguage, onLanguageChange: (AppLanguage) -
     @Suppress("UNCHECKED_CAST")
     val backStack = rememberNavBackStack(Destination.Splash) as NavBackStack<Destination>
 
+    Box(modifier = Modifier.fillMaxSize()) {
     NavDisplay(
         backStack = backStack,
         onBack = { 
@@ -310,7 +311,9 @@ fun MochilappApp(currentLanguage: AppLanguage, onLanguageChange: (AppLanguage) -
                     viewModel = marketplaceViewModel,
                     onBookClick = { id -> backStack.add(Destination.BookingFlow(id)) },
                     onBack = { backStack.removeAt(backStack.size - 1) },
-                    userName = userName
+                    userName = userName,
+                    isSaved = userProfile?.savedServices?.contains(key.serviceId) == true,
+                    onToggleSave = { authViewModel.toggleSavedService(key.serviceId) }
                 )
             }
             entry<Destination.BookingFlow> { key ->
@@ -377,7 +380,8 @@ fun MochilappApp(currentLanguage: AppLanguage, onLanguageChange: (AppLanguage) -
                 )
                 AiAssistantScreen(
                     viewModel = aiViewModel,
-                    onBack = { backStack.removeAt(backStack.size - 1) }
+                    onBack = { backStack.removeAt(backStack.size - 1) },
+                    onServiceClick = { id -> backStack.add(Destination.ServiceDetail(id)) }
                 )
             }
             entry<Destination.Search> {
@@ -411,8 +415,13 @@ fun MochilappApp(currentLanguage: AppLanguage, onLanguageChange: (AppLanguage) -
                 )
             }
             entry<Destination.UserProfile> {
+                val allServices by marketplaceViewModel.allServices.collectAsState()
+                val savedIds = userProfile?.savedServices ?: emptyList()
+                val savedAdventures = allServices.filter { it.id in savedIds }
                 UserProfileScreen(
                     authViewModel = authViewModel,
+                    savedAdventures = savedAdventures,
+                    onAdventureClick = { id -> backStack.add(Destination.ServiceDetail(id)) },
                     onBack = { backStack.removeAt(backStack.size - 1) },
                     onLogout = {
                         authViewModel.logout {
@@ -424,4 +433,9 @@ fun MochilappApp(currentLanguage: AppLanguage, onLanguageChange: (AppLanguage) -
             }
         }
     )
+
+        // Overlay global del Pasaporte: celebra puntos e insignias encima
+        // de cualquier pantalla cuando el servidor los acredita.
+        RewardOverlay(authViewModel = authViewModel)
+    }
 }

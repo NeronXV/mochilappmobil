@@ -291,3 +291,143 @@ exports.onReviewCreated = functions.firestore
         });
       });
     });
+
+/**
+ * Pasaporte Mochilapp — gamification engine.
+ *
+ * Points and badges are awarded server-side (Admin SDK) so they cannot be
+ * faked from the client, mirroring how onReviewCreated owns service ratings.
+ * Keep the level thresholds below in sync with PassportUtils.kt on the app.
+ */
+const POINTS = {BOOKING: 50, REVIEW: 30, POST: 20, CHECKIN: 40};
+
+// Highest threshold first; levelFor() returns the first match.
+const LEVELS = [
+  {min: 2000, name: "Viajero Legendario"},
+  {min: 1200, name: "Embajador Local"},
+  {min: 700, name: "Aventurero"},
+  {min: 300, name: "Mochilero"},
+  {min: 0, name: "Explorador"},
+];
+
+// One milestone badge per kind of action, granted on the first of each.
+const MILESTONE_BADGES = {
+  tripsBooked: "Primera aventura",
+  reviewsGiven: "Crítico viajero",
+  postsShared: "Primer relato",
+  placesVisited: "Aventura vivida",
+};
+
+const levelFor = (points) => LEVELS.find((l) => points >= l.min).name;
+
+// Every level reached (except the starting Explorador) becomes a badge.
+const levelBadges = (points) =>
+  LEVELS.filter((l) => l.min > 0 && points >= l.min).map((l) => l.name);
+
+/**
+ * Add points to a traveler (found by email), recompute their passport level
+ * and unlock any newly earned badges. No-op for missing users or companies.
+ * @param {FirebaseFirestore.Firestore} db Firestore instance.
+ * @param {string} email Traveler email to credit.
+ * @param {number} points Points to add.
+ * @param {string} counterField User field counting this action (e.g. postsShared).
+ * @return {Promise<void>|null} Transaction promise, or null if skipped.
+ */
+async function awardPoints(db, email, points, counterField) {
+  if (!email) return null;
+
+  const usersSnap = await db.collection("users")
+      .where("email", "==", email)
+      .limit(1)
+      .get();
+  if (usersSnap.empty) return null;
+  const userRef = usersSnap.docs[0].ref;
+
+  return db.runTransaction(async (tx) => {
+    const doc = await tx.get(userRef);
+    if (!doc.exists) return;
+    const data = doc.data();
+    // Solo los viajeros acumulan pasaporte; las empresas no.
+    if ((data.role || "TRAVELER") !== "TRAVELER") return;
+
+    const newPoints = (data.mochiPoints || 0) + points;
+    const newCounter = (data[counterField] || 0) + 1;
+
+    const badges = new Set(data.badges || []);
+    levelBadges(newPoints).forEach((b) => badges.add(b));
+    if (MILESTONE_BADGES[counterField] && newCounter >= 1) {
+      badges.add(MILESTONE_BADGES[counterField]);
+    }
+
+    tx.update(userRef, {
+      mochiPoints: newPoints,
+      passportLevel: levelFor(newPoints),
+      badges: Array.from(badges),
+      [counterField]: newCounter,
+    });
+  });
+}
+
+/**
+ * Firestore trigger: credit a traveler when their booking is paid. Awards
+ * once via the pointsAwarded flag; the flag-setting write is ignored by the
+ * status guard, so it never loops.
+ */
+exports.awardPointsOnBookingPaid = functions.firestore
+    .document("bookings/{bookingId}")
+    .onUpdate(async (change) => {
+      const before = change.before.data();
+      const after = change.after.data();
+      if (before.status === "PAID" || after.status !== "PAID") return null;
+      if (after.pointsAwarded) return null;
+
+      await change.after.ref.update({pointsAwarded: true});
+      return awardPoints(
+          admin.firestore(), after.travelerEmail, POINTS.BOOKING, "tripsBooked",
+      );
+    });
+
+/**
+ * Firestore trigger: credit a traveler when they check in at the place
+ * ("Vive"). The GPS-proximity gate runs on the client; here we just award
+ * once via the checkInPointsAwarded flag (the flag write doesn't change
+ * travelerCheckedInAt, so it never loops).
+ */
+exports.awardPointsOnTravelerCheckIn = functions.firestore
+    .document("bookings/{bookingId}")
+    .onUpdate(async (change) => {
+      const before = change.before.data();
+      const after = change.after.data();
+      if ((before.travelerCheckedInAt || 0) > 0) return null;
+      if (!(after.travelerCheckedInAt > 0)) return null;
+      if (after.checkInPointsAwarded) return null;
+
+      await change.after.ref.update({checkInPointsAwarded: true});
+      return awardPoints(
+          admin.firestore(), after.travelerEmail, POINTS.CHECKIN, "placesVisited",
+      );
+    });
+
+/**
+ * Firestore trigger: credit a traveler for each review they write.
+ */
+exports.awardPointsOnReview = functions.firestore
+    .document("reviews/{reviewId}")
+    .onCreate(async (snap) => {
+      const review = snap.data();
+      return awardPoints(
+          admin.firestore(), review.authorEmail, POINTS.REVIEW, "reviewsGiven",
+      );
+    });
+
+/**
+ * Firestore trigger: credit a traveler for each post they share.
+ */
+exports.awardPointsOnPost = functions.firestore
+    .document("posts/{postId}")
+    .onCreate(async (snap) => {
+      const post = snap.data();
+      return awardPoints(
+          admin.firestore(), post.authorEmail, POINTS.POST, "postsShared",
+      );
+    });

@@ -13,6 +13,8 @@ data class UserFirestore(
     val mochiPoints: Long = 0,
     val passportLevel: String = "Explorador",
     val badges: List<String> = emptyList(),
+    // IDs de servicios que el viajero guardó en "Mis Aventuras"
+    val savedServices: List<String> = emptyList(),
     val businessName: String = "",
     val businessDescription: String = "",
     val phone: String = "",
@@ -104,7 +106,10 @@ data class BookingFirestore(
     val checkedInAt: Long = 0L,
     val checkedInBy: String = "",
     val completedAt: Long = 0L,
-    val completedBy: String = ""
+    val completedBy: String = "",
+    // Check-in del viajero ("Vive"): distinto al checkedInAt operativo que
+    // marca la empresa. >0 cuando el viajero registra su visita en el lugar.
+    val travelerCheckedInAt: Long = 0L
 )
 
 data class PostFirestore(
@@ -131,6 +136,8 @@ data class ReviewFirestore(
     @DocumentId val id: String = "",
     val serviceId: String = "",
     val authorName: String = "",
+    // Necesario para que la Cloud Function de puntos sepa a quién acreditar
+    val authorEmail: String = "",
     val rating: Int = 5,
     val comment: String = "",
     val timestamp: Long = System.currentTimeMillis()

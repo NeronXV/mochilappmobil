@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -37,6 +38,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
 import coil.compose.AsyncImage
 import com.mochilapp.mobile.R
+import com.mochilapp.mobile.data.ServiceFirestore
 import com.mochilapp.mobile.ui.theme.t
 import com.mochilapp.mobile.ui.viewmodels.AuthViewModel
 import com.mochilapp.mobile.utils.PassportUtils
@@ -46,7 +48,9 @@ import com.mochilapp.mobile.utils.PassportUtils
 fun UserProfileScreen(
     authViewModel: AuthViewModel,
     onBack: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    savedAdventures: List<ServiceFirestore> = emptyList(),
+    onAdventureClick: (String) -> Unit = {}
 ) {
     val userProfile by authViewModel.userProfile.collectAsState()
     val isLoading by authViewModel.isLoading.collectAsState()
@@ -299,11 +303,12 @@ fun UserProfileScreen(
                 }
 
                 Text(
-                    text = "Mis Aventuras Guardadas",
+                    text = "Mis Aventuras Guardadas" +
+                        if (savedAdventures.isNotEmpty()) " (${savedAdventures.size})" else "",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onBackground
                 )
-                
+
                 // Message display (Success/Error)
                 message?.let {
                     Text(
@@ -320,12 +325,28 @@ fun UserProfileScreen(
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = t("no_adventures"),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray,
-                        textAlign = TextAlign.Center
-                    )
+                    if (savedAdventures.isEmpty()) {
+                        Text(
+                            text = t("no_adventures"),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray,
+                            textAlign = TextAlign.Center
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(bottom = 24.dp)
+                        ) {
+                            items(savedAdventures) { adventure ->
+                                SavedAdventureCard(
+                                    service = adventure,
+                                    brandColor = brandColor,
+                                    onClick = { onAdventureClick(adventure.id) }
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -397,5 +418,72 @@ fun BadgeChip(name: String, brandColor: Color) {
             fontWeight = FontWeight.Bold,
             color = brandColor
         )
+    }
+}
+
+@Composable
+fun SavedAdventureCard(service: ServiceFirestore, brandColor: Color, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(RoundedCornerShape(12.dp))
+            ) {
+                if (service.imageUrl.isNotEmpty()) {
+                    AsyncImage(
+                        model = service.imageUrl,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Explore, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    service.name,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Place, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color.Gray)
+                    Text(
+                        " " + displayLocation(service.location),
+                        fontSize = 12.sp,
+                        color = Color.Gray,
+                        maxLines = 1
+                    )
+                }
+                Text(
+                    formatMxn(service.price),
+                    fontWeight = FontWeight.Black,
+                    fontSize = 13.sp,
+                    color = brandColor
+                )
+            }
+            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray)
+        }
     }
 }

@@ -133,6 +133,18 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
         }
     }
 
+    // Check-in del viajero en el lugar ("Vive"). El gate de proximidad GPS lo
+    // hace la pantalla; aquí solo registramos la visita. Una Cloud Function
+    // acredita los MochiPuntos del Pasaporte.
+    fun travelerCheckIn(bookingId: String) {
+        viewModelScope.launch {
+            repository.updateBookingFields(
+                bookingId,
+                mapOf("travelerCheckedInAt" to System.currentTimeMillis())
+            )
+        }
+    }
+
     suspend fun createPaymentIntent(
         bookingId: String,
         amount: Double,

@@ -1,6 +1,7 @@
 package com.mochilapp.mobile.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,9 +20,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.mochilapp.mobile.data.ServiceFirestore
 import com.mochilapp.mobile.ui.theme.t
 import com.mochilapp.mobile.ui.viewmodels.AiViewModel
 import com.mochilapp.mobile.ui.viewmodels.ChatMessage
@@ -29,7 +34,8 @@ import com.mochilapp.mobile.ui.viewmodels.ChatMessage
 @Composable
 fun AiAssistantScreen(
     viewModel: AiViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onServiceClick: (String) -> Unit = {}
 ) {
     val messages by viewModel.messages.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -80,7 +86,7 @@ fun AiAssistantScreen(
                 contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
             ) {
                 items(messages) { message ->
-                    PremiumChatBubble(message)
+                    PremiumChatBubble(message, onServiceClick)
                 }
                 if (isLoading) {
                     item {
@@ -146,7 +152,7 @@ fun AiAssistantScreen(
 }
 
 @Composable
-fun PremiumChatBubble(message: ChatMessage) {
+fun PremiumChatBubble(message: ChatMessage, onServiceClick: (String) -> Unit = {}) {
     val isUser = message.isUser
     val alignment = if (isUser) Alignment.End else Alignment.Start
     val bubbleBrush = if (isUser) {
@@ -160,26 +166,96 @@ fun PremiumChatBubble(message: ChatMessage) {
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = alignment
     ) {
-        Box(
-            modifier = Modifier
-                .widthIn(max = 280.dp)
-                .clip(
-                    RoundedCornerShape(
-                        topStart = 20.dp,
-                        topEnd = 20.dp,
-                        bottomStart = if (isUser) 20.dp else 4.dp,
-                        bottomEnd = if (isUser) 4.dp else 20.dp
+        if (message.text.isNotBlank()) {
+            Box(
+                modifier = Modifier
+                    .widthIn(max = 280.dp)
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = 20.dp,
+                            topEnd = 20.dp,
+                            bottomStart = if (isUser) 20.dp else 4.dp,
+                            bottomEnd = if (isUser) 4.dp else 20.dp
+                        )
                     )
+                    .background(bubbleBrush)
+                    .padding(14.dp)
+            ) {
+                Text(
+                    text = message.text,
+                    color = textColor,
+                    lineHeight = 22.sp,
+                    fontSize = 15.sp
                 )
-                .background(bubbleBrush)
-                .padding(14.dp)
+            }
+        }
+
+        // Tarjetas reservables que Mochi recomendó
+        if (!isUser && message.recommendedServices.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            message.recommendedServices.forEach { service ->
+                ConciergeServiceCard(service = service, onClick = { onServiceClick(service.id) })
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun ConciergeServiceCard(service: ServiceFirestore, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = Color.White,
+        shadowElevation = 2.dp,
+        modifier = Modifier
+            .widthIn(max = 300.dp)
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = message.text,
-                color = textColor,
-                lineHeight = 22.sp,
-                fontSize = 15.sp
-            )
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(12.dp))
+            ) {
+                if (service.imageUrl.isNotEmpty()) {
+                    AsyncImage(
+                        model = service.imageUrl,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0xFFE9ECEF)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    service.name,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    color = Color(0xFF212529),
+                    maxLines = 1
+                )
+                Text(
+                    "Ver y reservar · ${formatMxn(service.price)}",
+                    fontWeight = FontWeight.Black,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray)
         }
     }
 }

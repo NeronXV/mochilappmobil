@@ -3,6 +3,7 @@ package com.mochilapp.mobile.repository
 import android.net.Uri
 import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.functions.FirebaseFunctions
@@ -45,6 +46,34 @@ class FirebaseRepository {
             Log.e(TAG, "Error saving user profile", e)
             throw e
         }
+    }
+
+    // Guarda o quita un servicio de "Mis Aventuras" del viajero. Usa
+    // arrayUnion/arrayRemove para no pisar la lista ante escrituras paralelas.
+    suspend fun setServiceSaved(uid: String, serviceId: String, saved: Boolean) {
+        try {
+            val op = if (saved) FieldValue.arrayUnion(serviceId)
+            else FieldValue.arrayRemove(serviceId)
+            firestore.collection("users").document(uid)
+                .update("savedServices", op).await()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating saved services", e)
+            throw e
+        }
+    }
+
+    // Perfil en tiempo real: refleja al instante los MochiPuntos, nivel e
+    // insignias que otorgan las Cloud Functions del Pasaporte.
+    fun observeUserProfile(uid: String): Flow<UserFirestore?> = callbackFlow {
+        val subscription = firestore.collection("users").document(uid)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e(TAG, "Error observing user profile", error)
+                    return@addSnapshotListener
+                }
+                trySend(snapshot?.toObject(UserFirestore::class.java))
+            }
+        awaitClose { subscription.remove() }
     }
 
     suspend fun uploadProfileImage(uri: Uri, uid: String): String {

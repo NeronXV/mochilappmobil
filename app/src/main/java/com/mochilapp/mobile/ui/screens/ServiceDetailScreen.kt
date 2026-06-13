@@ -34,7 +34,9 @@ fun ServiceDetailScreen(
     viewModel: MarketplaceViewModel,
     onBookClick: (String) -> Unit,
     onBack: () -> Unit,
-    userName: String = ""
+    userName: String = "",
+    isSaved: Boolean = false,
+    onToggleSave: () -> Unit = {}
 ) {
     var service by remember { mutableStateOf<ServiceFirestore?>(null) }
     var refreshKey by remember { mutableIntStateOf(0) }
@@ -125,20 +127,32 @@ fun ServiceDetailScreen(
                         ) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = Color.White)
                         }
-                        IconButton(
-                            onClick = {
-                                val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(
-                                        android.content.Intent.EXTRA_TEXT,
-                                        "¡Mira esta experiencia en Mochilapp! 🎒\n\n${s.name} en ${displayLocation(s.location)} desde ${formatMxn(s.price)} MXN.\n\nDescarga Mochilapp para reservar."
-                                    )
-                                }
-                                context.startActivity(android.content.Intent.createChooser(shareIntent, "Compartir experiencia"))
-                            },
-                            modifier = Modifier.background(Color.White.copy(0.2f), CircleShape)
-                        ) {
-                            Icon(Icons.Default.Share, contentDescription = null, tint = Color.White)
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            IconButton(
+                                onClick = onToggleSave,
+                                modifier = Modifier.background(Color.White.copy(0.2f), CircleShape)
+                            ) {
+                                Icon(
+                                    if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                                    contentDescription = if (isSaved) "Quitar de Mis Aventuras" else "Guardar en Mis Aventuras",
+                                    tint = if (isSaved) Color(0xFFFFD43B) else Color.White
+                                )
+                            }
+                            IconButton(
+                                onClick = {
+                                    val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(
+                                            android.content.Intent.EXTRA_TEXT,
+                                            "¡Mira esta experiencia en Mochilapp! 🎒\n\n${s.name} en ${displayLocation(s.location)} desde ${formatMxn(s.price)} MXN.\n\nDescarga Mochilapp para reservar."
+                                        )
+                                    }
+                                    context.startActivity(android.content.Intent.createChooser(shareIntent, "Compartir experiencia"))
+                                },
+                                modifier = Modifier.background(Color.White.copy(0.2f), CircleShape)
+                            ) {
+                                Icon(Icons.Default.Share, contentDescription = null, tint = Color.White)
+                            }
                         }
                     }
 

@@ -14,7 +14,10 @@ import kotlinx.coroutines.launch
 
 data class ChatMessage(
     val text: String,
-    val isUser: Boolean
+    val isUser: Boolean,
+    // Servicios reales que Mochi recomendó, para pintarlos como tarjetas
+    // reservables bajo su mensaje.
+    val recommendedServices: List<ServiceFirestore> = emptyList()
 )
 
 // Alias que siempre apunta al modelo flash estable vigente; evita que el bot
@@ -65,7 +68,11 @@ class AiViewModel(
                 val fullPrompt = "$contextPrompt\n\nUsuario dice: $userText"
                 
                 val response = chat.sendMessage(fullPrompt)
-                _messages.value = _messages.value + ChatMessage(response.text ?: "No recibí una respuesta clara de la IA.", false)
+                val raw = response.text ?: "No recibí una respuesta clara de la IA."
+                val (cleanText, ids) = extractRecommendedIds(raw)
+                // Solo IDs que existen de verdad; descarta alucinaciones del modelo.
+                val recommended = ids.mapNotNull { id -> availableServices.find { it.id == id } }
+                _messages.value = _messages.value + ChatMessage(cleanText, false, recommended)
             } catch (e: Exception) {
                 // Registro detallado en Logcat para depuración
                 val errorType = e.javaClass.simpleName
@@ -89,8 +96,8 @@ class AiViewModel(
     }
 
     private fun buildContextPrompt(services: List<ServiceFirestore>, lang: String): String {
-        val servicesInfo = services.joinToString("\n") { 
-            "- ${it.name} en ${it.location} por $${it.price} (${it.type}). Calificación: ${it.rating} estrellas."
+        val servicesInfo = services.joinToString("\n") {
+            "- [${it.id}] ${it.name} en ${it.location} por $${it.price} (${it.type}). Calificación: ${it.rating} estrellas."
         }
         
         val instructions = when(lang) {
@@ -128,8 +135,23 @@ class AiViewModel(
             
             CURRENT AVAILABLE SERVICES:
             $servicesInfo
-            
+
             5. Keep answers concise and easy to read on mobile.
+            6. IMPORTANTE: al final, en una línea aparte, escribe los IDs de los servicios que recomendaste, exactamente con este formato: [IDS: id1, id2]. Usa únicamente IDs de la lista de arriba (máximo 3). Si no recomiendas ninguno, omite esa línea por completo.
         """.trimIndent()
+    }
+
+    // Extrae el marcador [IDS: ...] de la respuesta de Mochi y devuelve el
+    // texto limpio (sin el marcador) junto con la lista de IDs recomendados.
+    private fun extractRecommendedIds(text: String): Pair<String, List<String>> {
+        val regex = Regex("\\[IDS:\\s*([^\\]]*)\\]", RegexOption.IGNORE_CASE)
+        val ids = regex.find(text)
+            ?.groupValues?.get(1)
+            ?.split(",")
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?: emptyList()
+        val clean = regex.replace(text, "").trim()
+        return clean to ids
     }
 }

@@ -1,7 +1,12 @@
 package com.mochilapp.mobile.ui.screens
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -22,6 +27,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import com.mochilapp.mobile.data.BookingFirestore
 import com.mochilapp.mobile.data.ServiceFirestore
 import com.mochilapp.mobile.ui.theme.t
 import com.mochilapp.mobile.ui.viewmodels.BookingViewModel
@@ -175,6 +182,16 @@ fun BookingDetailScreen(
 
                 Spacer(Modifier.height(32.dp))
 
+                // Check-in "Vive": el viajero registra su visita en el lugar
+                if (booking.status == "PAID" || booking.status == "CHECKED_IN") {
+                    TravelerCheckInCard(
+                        booking = booking,
+                        service = service,
+                        onCheckIn = { bookingViewModel.travelerCheckIn(booking.id) }
+                    )
+                    Spacer(Modifier.height(16.dp))
+                }
+
                 // Action Buttons
                 Button(
                     onClick = {
@@ -212,6 +229,152 @@ fun BookingDetailScreen(
                 }
                 
                 Spacer(modifier = Modifier.height(40.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun TravelerCheckInCard(
+    booking: BookingFirestore,
+    service: ServiceFirestore?,
+    onCheckIn: () -> Unit
+) {
+    val context = LocalContext.current
+
+    // Ya hizo check-in: estado de éxito.
+    if (booking.travelerCheckedInAt > 0L) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFFD4EFDF),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.Verified, contentDescription = null, tint = Color(0xFF1D8348))
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text("¡Visita registrada! 🎒", fontWeight = FontWeight.Black, color = Color(0xFF1D8348))
+                    Text("Sellaste esta aventura en tu Pasaporte.", fontSize = 12.sp, color = Color(0xFF1D8348))
+                }
+            }
+        }
+        return
+    }
+
+    var loading by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+    var hasPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { perms ->
+        hasPermission = perms[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            perms[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+    }
+
+    fun attemptCheckIn() {
+        val lat = service?.latitude ?: 0.0
+        val lng = service?.longitude ?: 0.0
+        // Sin coordenadas no se puede verificar proximidad: registramos directo.
+        if (lat == 0.0 && lng == 0.0) {
+            onCheckIn()
+            return
+        }
+        loading = true
+        message = null
+        try {
+            val fused = com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(context)
+            @Suppress("MissingPermission")
+            fused.lastLocation
+                .addOnSuccessListener { loc ->
+                    loading = false
+                    if (loc == null) {
+                        message = "No pudimos obtener tu ubicación. Activa el GPS e intenta de nuevo."
+                        return@addOnSuccessListener
+                    }
+                    val res = FloatArray(1)
+                    android.location.Location.distanceBetween(loc.latitude, loc.longitude, lat, lng, res)
+                    val meters = res[0]
+                    if (meters <= 500f) {
+                        onCheckIn()
+                    } else {
+                        val dist = if (meters >= 1000f)
+                            String.format(java.util.Locale.US, "%.1f km", meters / 1000f)
+                        else "${meters.toInt()} m"
+                        message = "Estás a $dist del lugar. Acércate para registrar tu visita."
+                    }
+                }
+                .addOnFailureListener {
+                    loading = false
+                    message = "No pudimos obtener tu ubicación. Intenta de nuevo."
+                }
+        } catch (e: SecurityException) {
+            loading = false
+            message = "Concede el permiso de ubicación para hacer check-in."
+        }
+    }
+
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(8.dp))
+                Text("¿Ya llegaste?", fontWeight = FontWeight.Black, fontSize = 15.sp)
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Haz check-in en el lugar para sellar esta aventura en tu Pasaporte y ganar MochiPuntos.",
+                fontSize = 12.sp,
+                color = Color.Gray
+            )
+            Spacer(Modifier.height(12.dp))
+            Button(
+                onClick = {
+                    if (!hasPermission) {
+                        launcher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                        message = "Concede el permiso de ubicación y vuelve a tocar."
+                    } else {
+                        attemptCheckIn()
+                    }
+                },
+                enabled = !loading,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                if (loading) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
+                } else {
+                    Icon(Icons.Default.Verified, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Hacer check-in", fontWeight = FontWeight.Bold)
+                }
+            }
+            message?.let {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    it,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }

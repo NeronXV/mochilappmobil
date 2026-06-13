@@ -66,6 +66,12 @@ class MarketplaceViewModel(private val repository: FirebaseRepository) : ViewMod
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Todos los servicios visibles, sin los filtros de búsqueda. Sirve para
+    // resolver los IDs de "Mis Aventuras" a tarjetas en el perfil.
+    val allServices: StateFlow<List<ServiceFirestore>> = repository.getAllServices()
+        .map { list -> list.filter { it.isVisible } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val recommendedServices: StateFlow<List<ServiceFirestore>> = repository.getAllServices()
         .map { list ->
             list.filter { it.isVisible }
@@ -207,6 +213,7 @@ class MarketplaceViewModel(private val repository: FirebaseRepository) : ViewMod
             val review = ReviewFirestore(
                 serviceId = serviceId,
                 authorName = authorName,
+                authorEmail = repository.getCurrentUserEmail() ?: "",
                 rating = rating,
                 comment = comment
             )

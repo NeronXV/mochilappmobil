@@ -7,10 +7,18 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.mochilapp.mobile.data.UserFirestore
 import com.mochilapp.mobile.repository.FirebaseRepository
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+
+// Recompensa del Pasaporte detectada en vivo, para celebrarla en pantalla.
+data class RewardEvent(val pointsGained: Long, val newBadge: String?)
 
 class AuthViewModel(private val repository: FirebaseRepository) : ViewModel() {
     private val auth = FirebaseAuth.getInstance()
@@ -24,6 +32,19 @@ class AuthViewModel(private val repository: FirebaseRepository) : ViewModel() {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
+    // Escucha en vivo del documento del usuario; mantiene MochiPuntos, nivel
+    // e insignias sincronizados con lo que escriben las Cloud Functions.
+    private var profileJob: Job? = null
+
+    // Eventos de recompensa (de una sola vez) para el overlay celebratorio.
+    private val _rewardEvents = MutableSharedFlow<RewardEvent>(extraBufferCapacity = 8)
+    val rewardEvents: SharedFlow<RewardEvent> = _rewardEvents.asSharedFlow()
+
+    // Línea base para calcular el delta; null hasta la primera emisión, así
+    // la carga inicial del perfil nunca dispara una celebración.
+    private var lastPoints: Long? = null
+    private var lastBadges: Set<String> = emptySet()
+
     init {
         checkCurrentUser()
     }
@@ -33,14 +54,36 @@ class AuthViewModel(private val repository: FirebaseRepository) : ViewModel() {
             val currentUser = auth.currentUser
             if (currentUser != null) {
                 _userProfile.value = repository.getUserProfile(currentUser.uid)
+                startObservingProfile(currentUser.uid)
             }
             _isCheckingAuth.value = false
         }
     }
 
-    private fun loadUserProfile(uid: String) {
-        viewModelScope.launch {
-            _userProfile.value = repository.getUserProfile(uid)
+    // Sustituye una lectura puntual por una suscripción reactiva. Ignora los
+    // nulos transitorios para no borrar el perfil durante reconexiones.
+    private fun startObservingProfile(uid: String) {
+        profileJob?.cancel()
+        lastPoints = null
+        lastBadges = emptySet()
+        profileJob = viewModelScope.launch {
+            repository.observeUserProfile(uid).collect { profile ->
+                if (profile == null) return@collect
+                val prevPoints = lastPoints
+                val prevBadges = lastBadges
+                _userProfile.value = profile
+
+                val currentBadges = profile.badges.toSet()
+                if (prevPoints != null) {
+                    val gained = profile.mochiPoints - prevPoints
+                    val newBadge = (currentBadges - prevBadges).firstOrNull()
+                    if (gained > 0 || newBadge != null) {
+                        _rewardEvents.tryEmit(RewardEvent(gained.coerceAtLeast(0L), newBadge))
+                    }
+                }
+                lastPoints = profile.mochiPoints
+                lastBadges = currentBadges
+            }
         }
     }
 
@@ -62,9 +105,11 @@ class AuthViewModel(private val repository: FirebaseRepository) : ViewModel() {
                         )
                         repository.saveUserProfile(newProfile)
                         _userProfile.value = newProfile
+                        startObservingProfile(user.uid)
                         onSuccess("TRAVELER")
                     } else {
                         _userProfile.value = profile
+                        startObservingProfile(user.uid)
                         onSuccess(profile.role)
                     }
                 }
@@ -120,6 +165,7 @@ class AuthViewModel(private val repository: FirebaseRepository) : ViewModel() {
                     )
                     repository.saveUserProfile(profile)
                     _userProfile.value = profile
+                    startObservingProfile(uid)
                     onSuccess(role)
                 }
             } catch (e: Exception) {
@@ -139,6 +185,7 @@ class AuthViewModel(private val repository: FirebaseRepository) : ViewModel() {
                     val profile = repository.getUserProfile(uid)
                     _userProfile.value = profile
                     if (profile != null) {
+                        startObservingProfile(uid)
                         onSuccess(profile.role)
                     } else {
                         onError("Profile not found")
@@ -153,6 +200,8 @@ class AuthViewModel(private val repository: FirebaseRepository) : ViewModel() {
     }
 
     fun logout(onComplete: () -> Unit) {
+        profileJob?.cancel()
+        profileJob = null
         auth.signOut()
         _userProfile.value = null
         onComplete()
@@ -218,6 +267,20 @@ class AuthViewModel(private val repository: FirebaseRepository) : ViewModel() {
                 onError(e.localizedMessage ?: "Error updating business profile")
             } finally {
                 _isLoading.value = false
+            }
+        }
+    }
+
+    // Guarda/quita un servicio de "Mis Aventuras". El listener en vivo del
+    // perfil actualiza la UI, así que no tocamos _userProfile a mano aquí.
+    fun toggleSavedService(serviceId: String) {
+        val profile = _userProfile.value ?: return
+        val currentlySaved = serviceId in profile.savedServices
+        viewModelScope.launch {
+            try {
+                repository.setServiceSaved(profile.uid, serviceId, !currentlySaved)
+            } catch (_: Exception) {
+                // Silencioso: un fallo de red no debe romper la navegación
             }
         }
     }
