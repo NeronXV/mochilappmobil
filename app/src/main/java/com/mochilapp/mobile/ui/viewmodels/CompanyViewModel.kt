@@ -7,6 +7,7 @@ import com.mochilapp.mobile.data.BookingFirestore
 import com.mochilapp.mobile.data.CompanyType
 import com.mochilapp.mobile.data.PromoFirestore
 import com.mochilapp.mobile.data.ServiceFirestore
+import com.mochilapp.mobile.data.StoryFirestore
 import com.mochilapp.mobile.repository.FirebaseRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -322,6 +323,29 @@ class CompanyViewModel(
                 expiresAt = now + 24 * 60 * 60 * 1000L // promo relámpago: vigencia 24h
             )
             repository.addPromo(promo)
+        }
+    }
+
+    // Publica una historia efímera (24h) visible en el círculo de la empresa.
+    fun addStory(imageUri: Uri, caption: String, companyName: String, onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val now = System.currentTimeMillis()
+                val story = StoryFirestore(
+                    ownerEmail = ownerEmail,
+                    companyName = companyName,
+                    caption = caption,
+                    timestamp = now,
+                    expiresAt = now + 24 * 60 * 60 * 1000L
+                )
+                repository.addStory(story, imageUri)
+                onComplete()
+            } catch (e: Exception) {
+                _serviceError.value = e.localizedMessage ?: "No se pudo publicar la historia."
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 }

@@ -124,6 +124,19 @@ data class PostFirestore(
     val linkedServiceId: String? = null // Allow booking from post
 )
 
+// Historia efímera de una empresa (estilo stories): visible 24h. El viajero
+// la ve en un visor a pantalla completa al tocar el círculo de la empresa.
+data class StoryFirestore(
+    @DocumentId val id: String = "",
+    val ownerEmail: String = "",
+    val companyName: String = "",
+    val imageUrl: String = "",
+    val caption: String = "",
+    val serviceId: String = "",
+    val timestamp: Long = System.currentTimeMillis(),
+    val expiresAt: Long = 0L
+)
+
 data class CommentFirestore(
     @DocumentId val id: String = "",
     val postId: String = "",

@@ -42,7 +42,20 @@ import com.mochilapp.mobile.ui.theme.t
 import com.mochilapp.mobile.ui.viewmodels.AuthViewModel
 import com.mochilapp.mobile.ui.viewmodels.CompanyViewModel
 import com.mochilapp.mobile.ui.viewmodels.MarketplaceViewModel
+import com.mochilapp.mobile.data.StoryFirestore
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,13 +85,22 @@ fun TravelerDashboard(
     // Fila de círculos de empresas ("abierto ahora" = algún servicio con isOpen)
     val companies by viewModel.companies.collectAsState()
     val allServices by viewModel.allServices.collectAsState()
+    val stories by viewModel.activeStories.collectAsState()
     var selectedCircle by remember { mutableStateOf<CompanyCircle?>(null) }
-    val circles = remember(companies, allServices) {
+    var storyCircle by remember { mutableStateOf<CompanyCircle?>(null) }
+    val circles = remember(companies, allServices, stories) {
         companies.mapNotNull { company ->
             val owned = allServices.filter { it.ownerEmail == company.email }
             if (owned.isEmpty()) null
-            else CompanyCircle(company, owned, owned.any { it.isOpen })
-        }.sortedByDescending { it.openNow }
+            else {
+                val story = stories.filter { it.ownerEmail == company.email }
+                    .maxByOrNull { it.timestamp }
+                CompanyCircle(company, owned, owned.any { it.isOpen }, story)
+            }
+        }.sortedWith(
+            compareByDescending<CompanyCircle> { it.story != null }
+                .thenByDescending { it.openNow }
+        )
     }
 
     ModalNavigationDrawer(
@@ -171,7 +193,12 @@ fun TravelerDashboard(
                 // Círculos de empresas con "abierto ahora" (estilo stories)
                 if (circles.isNotEmpty()) {
                     item {
-                        BusinessCirclesRow(circles = circles, onCircleClick = { selectedCircle = it })
+                        BusinessCirclesRow(
+                            circles = circles,
+                            onCircleClick = { circle ->
+                                if (circle.story != null) storyCircle = circle else selectedCircle = circle
+                            }
+                        )
                     }
                 }
 
@@ -311,6 +338,14 @@ fun TravelerDashboard(
                 onDismiss = { selectedCircle = null }
             )
         }
+
+        storyCircle?.let { circle ->
+            StoryViewer(
+                circle = circle,
+                onOpenProfile = { storyCircle = null; selectedCircle = circle },
+                onDismiss = { storyCircle = null }
+            )
+        }
     }
 }
 
@@ -318,7 +353,8 @@ fun TravelerDashboard(
 data class CompanyCircle(
     val company: UserFirestore,
     val services: List<ServiceFirestore>,
-    val openNow: Boolean
+    val openNow: Boolean,
+    val story: StoryFirestore? = null
 )
 
 @Composable
@@ -337,7 +373,15 @@ fun BusinessCirclesRow(circles: List<CompanyCircle>, onCircleClick: (CompanyCirc
 @Composable
 fun CompanyCircleItem(circle: CompanyCircle, onClick: () -> Unit) {
     val name = circle.company.businessName.ifBlank { circle.company.name }
-    val ringColor = if (circle.openNow) Color(0xFF2ECC71) else Color(0xFFCED4DA)
+    // Anillo degradado de marca cuando hay historia nueva (estilo stories);
+    // si no, verde si está abierto y gris si está cerrado.
+    val ringBrush = when {
+        circle.story != null -> Brush.linearGradient(
+            listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)
+        )
+        circle.openNow -> SolidColor(Color(0xFF2ECC71))
+        else -> SolidColor(Color(0xFFCED4DA))
+    }
     val image = circle.company.profileImageUrl.ifBlank {
         circle.services.firstOrNull { it.imageUrl.isNotBlank() }?.imageUrl ?: ""
     }
@@ -351,7 +395,7 @@ fun CompanyCircleItem(circle: CompanyCircle, onClick: () -> Unit) {
             Box(
                 modifier = Modifier
                     .size(64.dp)
-                    .border(2.dp, ringColor, CircleShape)
+                    .border(if (circle.story != null) 2.5.dp else 2.dp, ringBrush, CircleShape)
                     .padding(3.dp)
                     .clip(CircleShape)
                     .background(Color(0xFFE9ECEF)),
@@ -459,6 +503,186 @@ fun CompanyCircleSheet(
             }
             Spacer(Modifier.height(24.dp))
         }
+    }
+}
+
+@Composable
+fun StoryViewer(
+    circle: CompanyCircle,
+    onOpenProfile: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val story = circle.story ?: return
+    val name = circle.company.businessName.ifBlank { circle.company.name }
+    var started by remember { mutableStateOf(false) }
+    val progress by animateFloatAsState(
+        targetValue = if (started) 1f else 0f,
+        animationSpec = tween(durationMillis = 8000, easing = LinearEasing),
+        label = "storyProgress"
+    )
+    // Auto-cierre a los 8s, sensación efímera de historia.
+    LaunchedEffect(story.id) {
+        started = true
+        delay(8000)
+        onDismiss()
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .clickable(onClick = onDismiss)
+        ) {
+            AsyncImage(
+                model = story.imageUrl,
+                contentDescription = story.caption,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(12.dp)
+            ) {
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(2.dp)),
+                    color = Color.White,
+                    trackColor = Color.White.copy(alpha = 0.3f)
+                )
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (circle.company.profileImageUrl.isNotBlank()) {
+                            AsyncImage(
+                                model = circle.company.profileImageUrl,
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Text(name.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Black)
+                        }
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Text(name, color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.White)
+                    }
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))))
+                    .navigationBarsPadding()
+                    .padding(20.dp)
+            ) {
+                if (story.caption.isNotBlank()) {
+                    Text(story.caption, color = Color.White, fontSize = 15.sp, lineHeight = 20.sp)
+                    Spacer(Modifier.height(16.dp))
+                }
+                Button(
+                    onClick = onOpenProfile,
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black)
+                ) {
+                    Icon(Icons.Default.Storefront, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Ver $name", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StoryUploadButton(viewModel: CompanyViewModel, companyName: String) {
+    val context = LocalContext.current
+    var pickedUri by remember { mutableStateOf<Uri?>(null) }
+    var caption by remember { mutableStateOf("") }
+    var showDialog by remember { mutableStateOf(false) }
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            pickedUri = uri
+            caption = ""
+            showDialog = true
+        }
+    }
+
+    OutlinedButton(
+        onClick = { launcher.launch("image/*") },
+        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.tertiary)
+    ) {
+        Icon(Icons.Default.AddAPhoto, contentDescription = null)
+        Spacer(Modifier.width(8.dp))
+        Text("Subir Historia (24h)", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+    }
+
+    if (showDialog) {
+        val uri = pickedUri
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = { Text("Nueva historia") },
+            text = {
+                Column {
+                    Text("Tu historia será visible 24 horas para los viajeros.", fontSize = 12.sp, color = Color.Gray)
+                    Spacer(Modifier.height(12.dp))
+                    if (uri != null) {
+                        AsyncImage(
+                            model = uri,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(160.dp)
+                                .clip(RoundedCornerShape(12.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = caption,
+                        onValueChange = { caption = it },
+                        label = { Text("Texto (opcional)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    uri?.let { viewModel.addStory(it, caption, companyName) }
+                    showDialog = false
+                    Toast.makeText(context, "Historia publicada 🎒", Toast.LENGTH_SHORT).show()
+                }) { Text("Publicar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDialog = false }) { Text("Cancelar") }
+            }
+        )
     }
 }
 
@@ -1324,6 +1548,14 @@ fun CompanyDashboard(
                                     onDismiss = { showNoticesDialog = false }
                                 )
                             }
+                        }
+
+                        // Subir historia efímera (24h) que verán los viajeros
+                        item {
+                            StoryUploadButton(
+                                viewModel = viewModel,
+                                companyName = userProfile?.name ?: "Empresa"
+                            )
                         }
 
                         // Módulos por vertical (equivalente al moduleRegistry del panel web):

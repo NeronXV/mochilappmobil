@@ -43,8 +43,11 @@ class FirebaseRepository {
     // WhatsApp/teléfono al viajero (el contacto vive en el doc del usuario).
     suspend fun getUserByEmail(email: String): UserFirestore? {
         return try {
+            // Filtramos por role==COMPANY: las reglas solo permiten listar
+            // empresas (no viajeros), y siempre buscamos al dueño del servicio.
             firestore.collection("users")
                 .whereEqualTo("email", email)
+                .whereEqualTo("role", "COMPANY")
                 .limit(1)
                 .get().await()
                 .toObjects(UserFirestore::class.java)
@@ -373,6 +376,30 @@ class FirebaseRepository {
             Log.e(TAG, "Error adding post", e)
             throw e
         }
+    }
+
+    // --- Stories (historias efímeras de empresas, 24h) ---
+    suspend fun addStory(story: StoryFirestore, imageUri: Uri) {
+        try {
+            val imageUrl = uploadImage(imageUri, "stories/${auth.currentUser?.uid}/${UUID.randomUUID()}")
+            firestore.collection("stories").add(story.copy(imageUrl = imageUrl)).await()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error adding story", e)
+            throw e
+        }
+    }
+
+    fun getActiveStories(): Flow<List<StoryFirestore>> = callbackFlow {
+        val subscription = firestore.collection("stories")
+            .whereGreaterThan("expiresAt", System.currentTimeMillis())
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e(TAG, "Error listening to stories", error)
+                    return@addSnapshotListener
+                }
+                if (snapshot != null) trySend(snapshot.toObjects(StoryFirestore::class.java))
+            }
+        awaitClose { subscription.remove() }
     }
 
     suspend fun toggleLike(postId: String, userUid: String) {

@@ -77,6 +77,11 @@ class MarketplaceViewModel(private val repository: FirebaseRepository) : ViewMod
     val companies: StateFlow<List<UserFirestore>> = repository.getCompanies()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Historias efímeras vigentes (24h) para el anillo de stories.
+    val activeStories: StateFlow<List<com.mochilapp.mobile.data.StoryFirestore>> =
+        repository.getActiveStories()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val recommendedServices: StateFlow<List<ServiceFirestore>> = repository.getAllServices()
         .map { list ->
             list.filter { it.isVisible }
