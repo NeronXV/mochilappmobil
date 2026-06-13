@@ -67,4 +67,19 @@ sealed interface Destination : NavKey {
 
     @Serializable
     data object BoatTourModule : Destination
+
+    @Serializable
+    data object LodgingModule : Destination
+
+    @Serializable
+    data object PropertyRentalModule : Destination
+
+    @Serializable
+    data object RestaurantModule : Destination
+
+    @Serializable
+    data object TourAgencyModule : Destination
+
+    @Serializable
+    data object TransportModule : Destination
 }

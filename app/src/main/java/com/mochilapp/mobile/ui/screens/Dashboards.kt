@@ -245,7 +245,9 @@ fun TravelerDashboard(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                if (searchQuery.isNotEmpty() || selectedType != null) "No encontramos experiencias con esos filtros."
+                                if (searchQuery.isNotEmpty() || selectedType != null || selectedDate != null ||
+                                    currentGuests > 1 || currentPriceRange != com.mochilapp.mobile.ui.viewmodels.PriceRange.ALL
+                                ) "No encontramos experiencias con esos filtros."
                                 else "Aún no hay experiencias disponibles. Vuelve pronto.",
                                 color = Color.Gray,
                                 textAlign = TextAlign.Center,
@@ -505,14 +507,36 @@ fun PremiumFilterSection(
                     onClick = { showGuestsMenu = true }
                 )
                 DropdownMenu(expanded = showGuestsMenu, onDismissRequest = { showGuestsMenu = false }) {
-                    listOf(1, 2, 4, 8, 10).forEach { count ->
-                        DropdownMenuItem(
-                            text = { Text("$count+ ${t("people")}") },
-                            onClick = { 
-                                onGuestsChange(count)
-                                showGuestsMenu = false 
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("$guests+ ${t("people")}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = { if (guests > 1) onGuestsChange(guests - 1) },
+                                enabled = guests > 1
+                            ) {
+                                Icon(
+                                    Icons.Default.RemoveCircle,
+                                    contentDescription = "Menos personas",
+                                    tint = if (guests > 1) MaterialTheme.colorScheme.primary else Color.LightGray
+                                )
                             }
-                        )
+                            Text(
+                                "$guests",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 20.sp,
+                                modifier = Modifier.padding(horizontal = 12.dp)
+                            )
+                            IconButton(onClick = { onGuestsChange(guests + 1) }) {
+                                Icon(
+                                    Icons.Default.AddCircle,
+                                    contentDescription = "Más personas",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -573,7 +597,7 @@ fun PremiumFilterSection(
                 PremiumFilterChip(
                     selected = selectedType == type.name,
                     onClick = { onTypeSelect(type.name) },
-                    label = type.name.lowercase().replaceFirstChar { it.uppercase() },
+                    label = com.mochilapp.mobile.ui.theme.serviceTypeLabel(type.name),
                     icon = icon
                 )
             }
@@ -787,7 +811,7 @@ fun PremiumServiceCard(
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Text(
-                                "$${service.price}",
+                                formatMxn(service.price),
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                                 color = Color.White,
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black)
@@ -814,7 +838,7 @@ fun PremiumServiceCard(
                         }
                         Spacer(Modifier.weight(1f))
                         Icon(Icons.Default.Place, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                        Text(service.location, color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                        Text(displayLocation(service.location), color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
                     }
                 }
             }
@@ -833,6 +857,11 @@ fun CompanyDashboard(
     onProfileClick: () -> Unit,
     onBookingClick: (String) -> Unit,
     onBoatModuleClick: () -> Unit = {},
+    onLodgingModuleClick: () -> Unit = {},
+    onRentalModuleClick: () -> Unit = {},
+    onRestaurantModuleClick: () -> Unit = {},
+    onTourAgencyModuleClick: () -> Unit = {},
+    onTransportModuleClick: () -> Unit = {},
     onCommunityClick: () -> Unit = {}
 ) {
     val services by viewModel.myServices.collectAsState()
@@ -1073,41 +1102,135 @@ fun CompanyDashboard(
                             }
                         }
 
-                        // Módulo de Embarcaciones (visible solo si la empresa tiene servicios BOAT_TOUR)
-                        if (services.any { it.type == "BOAT_TOUR" }) {
-                            item {
-                                Surface(
-                                    onClick = onBoatModuleClick,
-                                    color = Color(0xFF0F172A),
-                                    shape = RoundedCornerShape(20.dp),
-                                    modifier = Modifier.fillMaxWidth()
+                        // Avisos operativos a viajeros (retrasos, cambios, cierres)
+                        item {
+                            var showNoticesDialog by remember { mutableStateOf(false) }
+                            val myNotices by viewModel.myNotices.collectAsState()
+                            val activeNoticesCount = myNotices.count {
+                                it.isActive && (it.expiresAt <= 0L || it.expiresAt > System.currentTimeMillis())
+                            }
+                            OutlinedButton(
+                                onClick = { showNoticesDialog = true },
+                                shape = RoundedCornerShape(20.dp),
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = companyTeal)
+                            ) {
+                                Icon(Icons.Default.Campaign, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    if (activeNoticesCount > 0) "Avisos a Viajeros ($activeNoticesCount activos)"
+                                    else "Avisos a Viajeros",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                            }
+                            if (showNoticesDialog) {
+                                CompanyNoticesDialog(
+                                    services = services,
+                                    notices = myNotices,
+                                    companyName = userProfile?.name ?: "Empresa",
+                                    onSend = { serviceId, serviceName, date, message, severity ->
+                                        viewModel.sendNotice(
+                                            serviceId = serviceId,
+                                            serviceName = serviceName,
+                                            companyName = userProfile?.name ?: "Empresa",
+                                            date = date,
+                                            message = message,
+                                            severity = severity
+                                        )
+                                        showNoticesDialog = false
+                                    },
+                                    onDeactivate = { viewModel.deactivateNotice(it) },
+                                    onDismiss = { showNoticesDialog = false }
+                                )
+                            }
+                        }
+
+                        // Módulos por vertical (equivalente al moduleRegistry del panel web):
+                        // una tarjeta por cada módulo cuyo tipo de servicio tenga la empresa
+                        val moduleEntries = listOf(
+                            CompanyModuleEntry(
+                                title = "Control de Embarcaciones",
+                                subtitle = "Mapa de asientos, ocupación y cupos en vivo",
+                                icon = Icons.Default.DirectionsBoat,
+                                accent = Color(0xFF22D3EE),
+                                serviceTypes = setOf("BOAT_TOUR"),
+                                onClick = onBoatModuleClick
+                            ),
+                            CompanyModuleEntry(
+                                title = "Gestión de Hospedaje",
+                                subtitle = "Habitaciones ocupadas y libres por día",
+                                icon = Icons.Default.Hotel,
+                                accent = Color(0xFF34D399),
+                                serviceTypes = setOf("HOTEL", "HOSTEL"),
+                                onClick = onLodgingModuleClick
+                            ),
+                            CompanyModuleEntry(
+                                title = "Calendario de Rentas",
+                                subtitle = "Disponibilidad mensual y rentas de propiedades",
+                                icon = Icons.Default.CalendarMonth,
+                                accent = Color(0xFFA78BFA),
+                                serviceTypes = setOf("PROPERTY_RENTAL"),
+                                onClick = onRentalModuleClick
+                            ),
+                            CompanyModuleEntry(
+                                title = "Gestión Gastronómica",
+                                subtitle = "Menú digital, estado del local y reservas de mesa",
+                                icon = Icons.Default.Restaurant,
+                                accent = Color(0xFFFBBF24),
+                                serviceTypes = setOf("RESTAURANT", "FOOD_STAND"),
+                                onClick = onRestaurantModuleClick
+                            ),
+                            CompanyModuleEntry(
+                                title = "Control de Salidas",
+                                subtitle = "Tablero de salidas y ocupación por horario",
+                                icon = Icons.Default.Explore,
+                                accent = Color(0xFFC4B5FD),
+                                serviceTypes = setOf("TOUR_AGENCY"),
+                                onClick = onTourAgencyModuleClick
+                            ),
+                            CompanyModuleEntry(
+                                title = "Control de Rutas",
+                                subtitle = "Corridas, asientos y pasajeros por horario",
+                                icon = Icons.Default.DirectionsBus,
+                                accent = Color(0xFF60A5FA),
+                                serviceTypes = setOf("TRANSPORT"),
+                                onClick = onTransportModuleClick
+                            )
+                        ).filter { entry -> services.any { it.type in entry.serviceTypes } }
+
+                        items(moduleEntries) { entry ->
+                            Surface(
+                                onClick = entry.onClick,
+                                color = Color(0xFF0F172A),
+                                shape = RoundedCornerShape(20.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(20.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row(
-                                        modifier = Modifier.padding(20.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                    Surface(
+                                        color = entry.accent.copy(alpha = 0.15f),
+                                        shape = RoundedCornerShape(14.dp)
                                     ) {
-                                        Surface(
-                                            color = Color(0xFF06B6D4).copy(alpha = 0.15f),
-                                            shape = RoundedCornerShape(14.dp)
-                                        ) {
-                                            Icon(
-                                                Icons.Default.DirectionsBoat,
-                                                contentDescription = null,
-                                                tint = Color(0xFF22D3EE),
-                                                modifier = Modifier.padding(12.dp).size(28.dp)
-                                            )
-                                        }
-                                        Spacer(Modifier.width(16.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text("Control de Embarcaciones", color = Color.White, fontWeight = FontWeight.Black, fontSize = 15.sp)
-                                            Text(
-                                                "Mapa de asientos, ocupación y cupos en vivo",
-                                                color = Color(0xFF94A3B8),
-                                                fontSize = 11.sp
-                                            )
-                                        }
-                                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF22D3EE))
+                                        Icon(
+                                            entry.icon,
+                                            contentDescription = null,
+                                            tint = entry.accent,
+                                            modifier = Modifier.padding(12.dp).size(28.dp)
+                                        )
                                     }
+                                    Spacer(Modifier.width(16.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(entry.title, color = Color.White, fontWeight = FontWeight.Black, fontSize = 15.sp)
+                                        Text(
+                                            entry.subtitle,
+                                            color = Color(0xFF94A3B8),
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = entry.accent)
                                 }
                             }
                         }
@@ -1183,7 +1306,9 @@ fun CompanyDashboard(
                                     Spacer(Modifier.height(16.dp))
                                     Row(verticalAlignment = Alignment.Bottom) {
                                         val totalCapacity = services.filter { it.isVisible }.sumOf { it.capacity }
-                                        val usedSlots = bookings.filter { it.status != "CANCELLED" }.sumOf { it.slots }
+                                        // Solo cuentan las reservas de hoy: las históricas no ocupan cupo presente
+                                        val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+                                        val usedSlots = bookings.filter { it.status != "CANCELLED" && it.date == today }.sumOf { it.slots }
                                         val freeSlots = if (totalCapacity > 0) totalCapacity - usedSlots else 0
                                         
                                         Text(
@@ -1418,71 +1543,26 @@ fun CompanyDashboard(
                     }
                 }
                 4 -> { // Perfil
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Surface(
-                            modifier = Modifier.size(100.dp),
-                            shape = CircleShape,
-                            color = companyLightTeal
-                        ) {
-                            if (userProfile?.profileImageUrl?.isNotEmpty() == true) {
-                                AsyncImage(
-                                    model = userProfile?.profileImageUrl,
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(userProfile?.name?.take(1) ?: "C", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onTertiaryContainer)
-                                }
-                            }
-                        }
-                        Spacer(Modifier.height(16.dp))
-                        Text(userProfile?.name ?: "Tu Empresa", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                        Text(userProfile?.companyType ?: "", color = Color.Gray)
-                        
-                        Spacer(Modifier.height(32.dp))
-                        
-                        Button(
-                            onClick = {
-                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://mochilapp-2c777.web.app?app=business"))
-                                context.startActivity(intent)
-                            },
-                            modifier = Modifier.fillMaxWidth().height(56.dp),
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            Icon(Icons.Default.OpenInNew, contentDescription = null)
-                            Spacer(Modifier.width(12.dp))
-                            Text(t("company_web_panel"), fontWeight = FontWeight.Bold)
-                        }
-                        
-                        Spacer(Modifier.height(16.dp))
-                        
-                        OutlinedButton(
-                            onClick = onLogout,
-                            modifier = Modifier.fillMaxWidth().height(56.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red)
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
-                            Spacer(Modifier.width(12.dp))
-                            Text(t("logout"), fontWeight = FontWeight.Bold)
-                        }
-                    }
+                    CompanyProfileTab(
+                        authViewModel = authViewModel,
+                        onLogout = onLogout
+                    )
                 }
             }
         }
     }
 }
 
-fun formatMxn(amount: Double): String {
-    val formatted = java.text.NumberFormat.getNumberInstance(java.util.Locale("es", "MX")).apply {
-        maximumFractionDigits = 0
-    }.format(amount)
-    return "$$formatted"
-}
+// Equivalente nativo del moduleRegistry del panel web: cada módulo declara
+// qué tipos de servicio lo habilitan
+data class CompanyModuleEntry(
+    val title: String,
+    val subtitle: String,
+    val icon: ImageVector,
+    val accent: Color,
+    val serviceTypes: Set<String>,
+    val onClick: () -> Unit
+)
 
 @Composable
 fun BookingStatusSummaryCard(

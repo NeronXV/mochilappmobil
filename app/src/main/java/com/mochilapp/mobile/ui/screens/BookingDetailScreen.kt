@@ -137,14 +137,14 @@ fun BookingDetailScreen(
                         Spacer(Modifier.height(16.dp))
                         Row(modifier = Modifier.fillMaxWidth()) {
                             TicketInfoItem(t("people").uppercase(), "${booking.slots} pers.", Modifier.weight(1f))
-                            TicketInfoItem("TOTAL", "$${booking.totalPrice} USD", Modifier.weight(1f))
+                            TicketInfoItem("TOTAL", "${formatMxn(booking.totalPrice)} MXN", Modifier.weight(1f))
                         }
                         
                         if (booking.discountAmount > 0) {
                             Spacer(Modifier.height(16.dp))
                             Surface(color = Color(0xFFD4EFDF), shape = RoundedCornerShape(8.dp)) {
                                 Text(
-                                    text = "Ahorro aplicado: $${booking.discountAmount} (${booking.promoCode})",
+                                    text = "Ahorro aplicado: ${formatMxn(booking.discountAmount)} (${booking.promoCode})",
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,

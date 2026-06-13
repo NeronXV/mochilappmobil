@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.mochilapp.mobile.data.ServiceFirestore
+import com.mochilapp.mobile.ui.theme.serviceTypeLabel
 import com.mochilapp.mobile.ui.theme.t
 import com.mochilapp.mobile.ui.viewmodels.MarketplaceViewModel
 
@@ -42,6 +43,7 @@ fun ServiceDetailScreen(
     val activePromo by viewModel.activePromo.collectAsState()
     val reviews by remember(serviceId) { viewModel.getReviewsForService(serviceId) }
         .collectAsState(initial = emptyList())
+    val activeNotices by viewModel.activeNotices.collectAsState()
     var showReviewDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(serviceId, refreshKey) {
@@ -66,7 +68,7 @@ fun ServiceDetailScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(t("total_price"), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                             Text(
-                                "$${s.price}",
+                                formatMxn(s.price),
                                 style = MaterialTheme.typography.headlineSmall.copy(
                                     fontWeight = FontWeight.Black,
                                     color = MaterialTheme.colorScheme.primary
@@ -129,7 +131,7 @@ fun ServiceDetailScreen(
                                     type = "text/plain"
                                     putExtra(
                                         android.content.Intent.EXTRA_TEXT,
-                                        "¡Mira esta experiencia en Mochilapp! 🎒\n\n${s.name} en ${s.location} desde $${s.price} MXN.\n\nDescarga Mochilapp para reservar."
+                                        "¡Mira esta experiencia en Mochilapp! 🎒\n\n${s.name} en ${displayLocation(s.location)} desde ${formatMxn(s.price)} MXN.\n\nDescarga Mochilapp para reservar."
                                     )
                                 }
                                 context.startActivity(android.content.Intent.createChooser(shareIntent, "Compartir experiencia"))
@@ -179,7 +181,7 @@ fun ServiceDetailScreen(
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(
-                                s.type,
+                                serviceTypeLabel(s.type),
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                                 color = Color.White,
                                 style = MaterialTheme.typography.labelSmall,
@@ -192,6 +194,25 @@ fun ServiceDetailScreen(
                             color = Color.White,
                             style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black)
                         )
+                    }
+                }
+
+                // Avisos operativos del negocio (retrasos, cierres, cambios)
+                val today = remember {
+                    java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                        .format(java.util.Date())
+                }
+                val serviceNotices = activeNotices.filter {
+                    it.serviceId == s.id && (it.date.isEmpty() || it.date >= today)
+                }
+                if (serviceNotices.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 24.dp).padding(top = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        serviceNotices.forEach { notice ->
+                            NoticeBanner(notice)
+                        }
                     }
                 }
 
@@ -214,7 +235,7 @@ fun ServiceDetailScreen(
                     )
                     DetailBadge(
                         Icons.Default.Place,
-                        s.location.split(",").first().trim().take(10),
+                        displayLocation(s.location.split(",").first().trim()).take(10),
                         t("location")
                     )
                 }
@@ -246,7 +267,7 @@ fun ServiceDetailScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.Place, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text(s.location, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                                Text(displayLocation(s.location), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
                             }
                             
                             if (s.address.isNotEmpty()) {

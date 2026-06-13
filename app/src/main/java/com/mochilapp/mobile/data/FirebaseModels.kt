@@ -149,3 +149,20 @@ data class PromoFirestore(
     val expiresAt: Long = 0L,
     val timestamp: Long = System.currentTimeMillis()
 )
+
+// Aviso operativo del negocio hacia los viajeros (distinto a una promo:
+// informa, no vende). Con date apunta a las reservas de ese día; sin date
+// es un aviso general visible en el detalle del servicio
+data class NoticeFirestore(
+    @DocumentId val id: String = "",
+    val ownerEmail: String = "",
+    val companyName: String = "",
+    val serviceId: String = "",
+    val serviceName: String = "",
+    val date: String = "",
+    val message: String = "",
+    val severity: String = "INFO", // INFO | IMPORTANT | URGENT
+    val isActive: Boolean = true,
+    val expiresAt: Long = 0L,
+    val timestamp: Long = System.currentTimeMillis()
+)

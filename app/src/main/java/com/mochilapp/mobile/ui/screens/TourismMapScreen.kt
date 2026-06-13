@@ -209,8 +209,8 @@ fun TourismMapScreen(
                                 Spacer(Modifier.width(16.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(service.name, fontWeight = FontWeight.Black, fontSize = 16.sp, maxLines = 1)
-                                    Text(service.location, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                                    Text("$${service.price} MXN", fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary, fontSize = 16.sp)
+                                    Text(displayLocation(service.location), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                                    Text("${formatMxn(service.price)} MXN", fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary, fontSize = 16.sp)
                                 }
                                 IconButton(
                                     onClick = { onServiceClick(service.id) },
@@ -306,7 +306,7 @@ private fun emojiForType(type: String): String = when (type) {
 // Marcador estilo Google Maps/Airbnb: píldora blanca con emoji + precio.
 // Al seleccionarse se invierte a azul de marca con texto blanco.
 private fun createPricePillMarker(price: Double, type: String, isSelected: Boolean): BitmapDescriptor {
-    val label = "${emojiForType(type)} $${if (price % 1.0 == 0.0) price.toInt().toString() else price.toString()}"
+    val label = "${emojiForType(type)} ${formatMxn(price)}"
 
     val density = 3f // escala para nitidez en pantallas de alta densidad
     val textSizePx = 13f * density

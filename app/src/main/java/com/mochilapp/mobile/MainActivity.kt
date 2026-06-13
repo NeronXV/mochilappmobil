@@ -203,6 +203,11 @@ fun MochilappApp(currentLanguage: AppLanguage, onLanguageChange: (AppLanguage) -
                     onProfileClick = { backStack.add(Destination.UserProfile) },
                     onBookingClick = { id -> backStack.add(Destination.BookingDetailCompany(id)) },
                     onBoatModuleClick = { backStack.add(Destination.BoatTourModule) },
+                    onLodgingModuleClick = { backStack.add(Destination.LodgingModule) },
+                    onRentalModuleClick = { backStack.add(Destination.PropertyRentalModule) },
+                    onRestaurantModuleClick = { backStack.add(Destination.RestaurantModule) },
+                    onTourAgencyModuleClick = { backStack.add(Destination.TourAgencyModule) },
+                    onTransportModuleClick = { backStack.add(Destination.TransportModule) },
                     onCommunityClick = { backStack.add(Destination.SocialFeed) }
                 )
             }
@@ -212,6 +217,56 @@ fun MochilappApp(currentLanguage: AppLanguage, onLanguageChange: (AppLanguage) -
                     factory = ViewModelFactory(repository = repository, userEmail = userEmail, userUid = userUid)
                 )
                 BoatTourModuleScreen(
+                    viewModel = companyViewModel,
+                    onBack = { backStack.removeAt(backStack.size - 1) }
+                )
+            }
+            entry<Destination.LodgingModule> {
+                val companyViewModel: CompanyViewModel = viewModel(
+                    key = "company_$userUid",
+                    factory = ViewModelFactory(repository = repository, userEmail = userEmail, userUid = userUid)
+                )
+                LodgingModuleScreen(
+                    viewModel = companyViewModel,
+                    onBack = { backStack.removeAt(backStack.size - 1) }
+                )
+            }
+            entry<Destination.PropertyRentalModule> {
+                val companyViewModel: CompanyViewModel = viewModel(
+                    key = "company_$userUid",
+                    factory = ViewModelFactory(repository = repository, userEmail = userEmail, userUid = userUid)
+                )
+                PropertyRentalModuleScreen(
+                    viewModel = companyViewModel,
+                    onBack = { backStack.removeAt(backStack.size - 1) }
+                )
+            }
+            entry<Destination.RestaurantModule> {
+                val companyViewModel: CompanyViewModel = viewModel(
+                    key = "company_$userUid",
+                    factory = ViewModelFactory(repository = repository, userEmail = userEmail, userUid = userUid)
+                )
+                RestaurantModuleScreen(
+                    viewModel = companyViewModel,
+                    onBack = { backStack.removeAt(backStack.size - 1) }
+                )
+            }
+            entry<Destination.TourAgencyModule> {
+                val companyViewModel: CompanyViewModel = viewModel(
+                    key = "company_$userUid",
+                    factory = ViewModelFactory(repository = repository, userEmail = userEmail, userUid = userUid)
+                )
+                TourAgencyModuleScreen(
+                    viewModel = companyViewModel,
+                    onBack = { backStack.removeAt(backStack.size - 1) }
+                )
+            }
+            entry<Destination.TransportModule> {
+                val companyViewModel: CompanyViewModel = viewModel(
+                    key = "company_$userUid",
+                    factory = ViewModelFactory(repository = repository, userEmail = userEmail, userUid = userUid)
+                )
+                TransportModuleScreen(
                     viewModel = companyViewModel,
                     onBack = { backStack.removeAt(backStack.size - 1) }
                 )

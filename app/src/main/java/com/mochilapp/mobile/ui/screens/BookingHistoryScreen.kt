@@ -30,6 +30,11 @@ fun BookingHistoryScreen(
     onBack: () -> Unit
 ) {
     val bookings by viewModel.myBookings.collectAsState()
+    val activeNotices by viewModel.activeNotices.collectAsState()
+    val today = remember {
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+            .format(java.util.Date())
+    }
 
     Scaffold(
         topBar = {
@@ -71,7 +76,17 @@ fun BookingHistoryScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 items(bookings) { booking ->
-                    BookingCard(booking, onClick = { onBookingClick(booking.id) })
+                    // Aviso del negocio que afecta esta reserva (por fecha o general)
+                    val notice = activeNotices.firstOrNull {
+                        it.serviceId == booking.serviceId &&
+                            booking.status != "CANCELLED" &&
+                            booking.date >= today &&
+                            (it.date.isEmpty() || it.date == booking.date)
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        notice?.let { NoticeBanner(it) }
+                        BookingCard(booking, onClick = { onBookingClick(booking.id) })
+                    }
                 }
             }
         }
@@ -114,7 +129,7 @@ fun BookingCard(booking: BookingFirestore, onClick: () -> Unit) {
                 }
                 if (booking.discountAmount > 0) {
                     Text(
-                        text = "Ahorraste: $${booking.discountAmount}",
+                        text = "Ahorraste: ${formatMxn(booking.discountAmount)}",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color(0xFF2ECC71),
                         fontWeight = FontWeight.Bold
@@ -132,7 +147,7 @@ fun BookingCard(booking: BookingFirestore, onClick: () -> Unit) {
             
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = "$${booking.totalPrice}",
+                    text = formatMxn(booking.totalPrice),
                     fontWeight = FontWeight.Black,
                     color = MaterialTheme.colorScheme.primary,
                     fontSize = 18.sp

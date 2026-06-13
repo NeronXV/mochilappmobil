@@ -189,6 +189,39 @@ class AuthViewModel(private val repository: FirebaseRepository) : ViewModel() {
         }
     }
 
+    // Datos comerciales del perfil de empresa; role y businessVerified
+    // están protegidos por las reglas de Firestore
+    fun updateBusinessProfile(
+        name: String,
+        businessDescription: String,
+        phone: String,
+        whatsapp: String,
+        businessLocation: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val currentProfile = _userProfile.value ?: return
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val updatedProfile = currentProfile.copy(
+                    name = name,
+                    businessDescription = businessDescription,
+                    phone = phone,
+                    whatsapp = whatsapp,
+                    businessLocation = businessLocation
+                )
+                repository.saveUserProfile(updatedProfile)
+                _userProfile.value = updatedProfile
+                onSuccess()
+            } catch (e: Exception) {
+                onError(e.localizedMessage ?: "Error updating business profile")
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
     fun updateProfileImage(uri: Uri, onSuccess: () -> Unit, onError: (String) -> Unit) {
         val currentProfile = _userProfile.value ?: return
         viewModelScope.launch {

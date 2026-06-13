@@ -37,20 +37,32 @@ class MarketplaceViewModel(private val repository: FirebaseRepository) : ViewMod
     val activePromos: StateFlow<List<PromoFirestore>> = repository.getActivePromos()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Avisos operativos vigentes; cada pantalla filtra los del servicio que muestra
+    val activeNotices: StateFlow<List<com.mochilapp.mobile.data.NoticeFirestore>> =
+        repository.getActiveNotices()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val services: StateFlow<List<ServiceFirestore>> = combine(
-        _selectedType, _searchQuery, _priceRange, _guestsCount
-    ) { type, query, price, guests ->
-        FilterState(type, query, price, guests)
+        _selectedType, _searchQuery, _priceRange, _guestsCount, _selectedDate
+    ) { type, query, price, guests, date ->
+        FilterState(type, query, price, guests, date)
     }.flatMapLatest { filter ->
         val flow = if (filter.type == null) repository.getAllServices()
         else repository.getServicesByType(filter.type)
-        
-        flow.map { list ->
+
+        val filtered = flow.map { list ->
             list.filter { it.isVisible }
                 .filter { if (filter.query.isBlank()) true else it.matchesQuery(filter.query) }
                 .filter { it.matchesPriceRange(filter.priceRange) }
                 .filter { it.matchesGuests(filter.guests) }
+        }
+
+        val date = filter.date
+        if (date == null) filtered
+        else combine(filtered, repository.getBookingsByDate(date)) { list, bookings ->
+            val bookingsByService = bookings.groupBy { it.serviceId }
+            list.filter { it.hasAvailabilityFor(bookingsByService[it.id].orEmpty(), filter.guests) }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -67,8 +79,26 @@ class MarketplaceViewModel(private val repository: FirebaseRepository) : ViewMod
         val type: String?,
         val query: String,
         val priceRange: PriceRange,
-        val guests: Int
+        val guests: Int,
+        val date: String?
     )
+
+    // Cupo disponible en la fecha consultada: si el servicio maneja horarios de
+    // salida, basta con que alguno tenga lugar; sin capacidad definida no se limita
+    private fun ServiceFirestore.hasAvailabilityFor(
+        bookings: List<com.mochilapp.mobile.data.BookingFirestore>,
+        guests: Int
+    ): Boolean {
+        if (capacity <= 0) return true
+        val needed = guests.coerceAtLeast(1)
+        return if (departureTimes.isNotEmpty()) {
+            departureTimes.any { time ->
+                capacity - bookings.filter { it.departureTime == time }.sumOf { it.slots } >= needed
+            }
+        } else {
+            capacity - bookings.sumOf { it.slots } >= needed
+        }
+    }
 
     private fun ServiceFirestore.matchesQuery(query: String): Boolean {
         return name.contains(query, ignoreCase = true) || 

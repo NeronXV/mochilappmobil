@@ -37,6 +37,11 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
     val myBookings: StateFlow<List<BookingFirestore>> = repository.getBookingsForUser(effectiveEmail)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Avisos vigentes para cruzar contra las reservas del viajero
+    val activeNotices: StateFlow<List<com.mochilapp.mobile.data.NoticeFirestore>> =
+        repository.getActiveNotices()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // Reservas recibidas como empresa (para el detalle de reserva del panel)
     val ownerBookings: StateFlow<List<BookingFirestore>> = repository.getBookingsForOwner(effectiveEmail)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -61,6 +66,13 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
         discountAmount: Double = 0.0,
         originalTotal: Double = 0.0
     ) {
+        // Las fechas se guardan como yyyy-MM-dd, así que la comparación de strings es cronológica
+        val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+            .format(java.util.Date())
+        if (date < today) {
+            _bookingError.value = "No se pueden hacer reservas en fechas pasadas"
+            return
+        }
         viewModelScope.launch {
             // Generate a professional confirmation code MOCHI-XXXXXX
             val randomPart = java.util.UUID.randomUUID().toString().take(6).uppercase()

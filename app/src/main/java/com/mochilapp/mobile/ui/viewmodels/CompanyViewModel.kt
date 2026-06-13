@@ -49,6 +49,9 @@ class CompanyViewModel(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
+    private val _serviceError = MutableStateFlow<String?>(null)
+    val serviceError: StateFlow<String?> = _serviceError
+
     private val _selectedTab = MutableStateFlow(0)
     val selectedTab: StateFlow<Int> = _selectedTab
 
@@ -157,6 +160,7 @@ class CompanyViewModel(
     fun addService(service: ServiceFirestore, imageUri: Uri? = null, onComplete: () -> Unit) {
         viewModelScope.launch {
             _isLoading.value = true
+            _serviceError.value = null
             try {
                 repository.addService(
                     service.copy(
@@ -168,7 +172,7 @@ class CompanyViewModel(
                 )
                 onComplete()
             } catch (e: Exception) {
-                // Error handling
+                _serviceError.value = e.localizedMessage ?: "No se pudo publicar el servicio."
             } finally {
                 _isLoading.value = false
             }
@@ -226,13 +230,67 @@ class CompanyViewModel(
     fun updateService(id: String, service: ServiceFirestore, imageUri: Uri? = null, onComplete: () -> Unit) {
         viewModelScope.launch {
             _isLoading.value = true
+            _serviceError.value = null
             try {
                 repository.updateService(id, service, imageUri)
                 onComplete()
             } catch (e: Exception) {
-                // Error handling
+                _serviceError.value = e.localizedMessage ?: "No se pudo guardar el servicio."
             } finally {
                 _isLoading.value = false
+            }
+        }
+    }
+
+    // --- Avisos operativos para viajeros ---
+    val myNotices: StateFlow<List<com.mochilapp.mobile.data.NoticeFirestore>> =
+        repository.getNoticesByOwner(ownerEmail)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun sendNotice(
+        serviceId: String,
+        serviceName: String,
+        companyName: String,
+        date: String,
+        message: String,
+        severity: String
+    ) {
+        viewModelScope.launch {
+            try {
+                repository.addNotice(
+                    com.mochilapp.mobile.data.NoticeFirestore(
+                        ownerEmail = ownerEmail,
+                        companyName = companyName,
+                        serviceId = serviceId,
+                        serviceName = serviceName,
+                        date = date,
+                        message = message,
+                        severity = severity,
+                        isActive = true,
+                        // Aviso con fecha caduca al final de ese día; general dura 7 días
+                        expiresAt = System.currentTimeMillis() + 7L * 24 * 60 * 60 * 1000,
+                        timestamp = System.currentTimeMillis()
+                    )
+                )
+            } catch (_: Exception) {
+                // El listener de myNotices refleja el estado real
+            }
+        }
+    }
+
+    fun deactivateNotice(id: String) {
+        viewModelScope.launch {
+            repository.deactivateNotice(id)
+        }
+    }
+
+    // Reemplaza el menú del servicio gastronómico (alta/edición/baja de platillos)
+    fun updateServiceMenu(serviceId: String, menu: List<com.mochilapp.mobile.data.MenuItemFirestore>) {
+        viewModelScope.launch {
+            try {
+                repository.updateServiceMenu(serviceId, menu)
+            } catch (_: Exception) {
+                // El listener de myServices restaura el estado real si falla
             }
         }
     }

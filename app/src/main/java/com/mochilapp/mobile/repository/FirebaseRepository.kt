@@ -101,11 +101,47 @@ class FirebaseRepository {
 
     suspend fun addService(service: ServiceFirestore, imageUri: Uri? = null) {
         try {
+            val currentUser = auth.currentUser ?: throw IllegalStateException("Debes iniciar sesión para publicar.")
+            val currentEmail = currentUser.email ?: throw IllegalStateException("Tu cuenta no tiene email de autenticación.")
             var imageUrl = service.imageUrl
             if (imageUri != null) {
-                imageUrl = uploadImage(imageUri, "services/${auth.currentUser?.uid}/${UUID.randomUUID()}")
+                imageUrl = uploadImage(imageUri, "services/${currentUser.uid}/${UUID.randomUUID()}")
             }
-            firestore.collection("services").add(service.copy(imageUrl = imageUrl)).await()
+            val fields = mapOf(
+                "ownerEmail" to currentEmail,
+                "ownerUid" to currentUser.uid,
+                "name" to service.name,
+                "description" to service.description,
+                "price" to service.price,
+                "type" to service.type,
+                "location" to service.location,
+                "imageUrl" to imageUrl,
+                "rating" to 0.0,
+                "reviewCount" to 0,
+                "capacity" to service.capacity,
+                "departureTimes" to service.departureTimes,
+                "businessHours" to service.businessHours,
+                "isOpen" to service.isOpen,
+                "amenities" to service.amenities,
+                "rules" to service.rules,
+                "routeName" to service.routeName,
+                "origin" to service.origin,
+                "destination" to service.destination,
+                "vehicleName" to service.vehicleName,
+                "driverName" to service.driverName,
+                "guideName" to service.guideName,
+                "meetingPoint" to service.meetingPoint,
+                "checkIn" to service.checkIn,
+                "checkOut" to service.checkOut,
+                "menu" to service.menu,
+                "rooms" to service.rooms,
+                "isVisible" to service.isVisible,
+                "isRecommended" to false,
+                "latitude" to service.latitude,
+                "longitude" to service.longitude,
+                "address" to service.address
+            )
+            firestore.collection("services").add(fields).await()
         } catch (e: Exception) {
             Log.e(TAG, "Error adding service", e)
             throw e
@@ -162,6 +198,16 @@ class FirebaseRepository {
         }
     }
 
+    // Actualiza solo el menú del servicio (módulo gastronómico)
+    suspend fun updateServiceMenu(id: String, menu: List<MenuItemFirestore>) {
+        try {
+            firestore.collection("services").document(id).update("menu", menu).await()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating service menu", e)
+            throw e
+        }
+    }
+
     suspend fun updateServiceVisibility(id: String, isVisible: Boolean) {
         try {
             firestore.collection("services").document(id).update("isVisible", isVisible).await()
@@ -214,6 +260,20 @@ class FirebaseRepository {
         } catch (e: Exception) {
             Log.e(TAG, "Error updating booking fields", e)
         }
+    }
+
+    // Solo filtro de igualdad por fecha (sin índice compuesto); las canceladas
+    // se descartan en el cliente
+    fun getBookingsByDate(date: String): Flow<List<BookingFirestore>> = callbackFlow {
+        val subscription = firestore.collection("bookings")
+            .whereEqualTo("date", date)
+            .addSnapshotListener { snapshot, _ ->
+                if (snapshot != null) {
+                    trySend(snapshot.toObjects(BookingFirestore::class.java)
+                        .filter { it.status != "CANCELLED" })
+                }
+            }
+        awaitClose { subscription.remove() }
     }
 
     fun getBookingsByServiceAndDate(serviceId: String, date: String): Flow<List<BookingFirestore>> = callbackFlow {
@@ -359,6 +419,52 @@ class FirebaseRepository {
             firestore.collection("promos").add(promo).await()
         } catch (e: Exception) {
             Log.e(TAG, "Error adding promo", e)
+        }
+    }
+
+    // --- Avisos (notices) ---
+    suspend fun addNotice(notice: NoticeFirestore) {
+        try {
+            firestore.collection("notices").add(notice).await()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error adding notice", e)
+            throw e
+        }
+    }
+
+    fun getNoticesByOwner(email: String): Flow<List<NoticeFirestore>> = callbackFlow {
+        val subscription = firestore.collection("notices")
+            .whereEqualTo("ownerEmail", email)
+            .addSnapshotListener { snapshot, _ ->
+                if (snapshot != null) {
+                    trySend(snapshot.toObjects(NoticeFirestore::class.java)
+                        .sortedByDescending { it.timestamp })
+                }
+            }
+        awaitClose { subscription.remove() }
+    }
+
+    // Avisos vigentes de toda la plataforma; el volumen es bajo y el viajero
+    // los cruza en el cliente contra sus reservas/servicio en pantalla
+    fun getActiveNotices(): Flow<List<NoticeFirestore>> = callbackFlow {
+        val subscription = firestore.collection("notices")
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .limit(50)
+            .addSnapshotListener { snapshot, _ ->
+                if (snapshot != null) {
+                    val now = System.currentTimeMillis()
+                    trySend(snapshot.toObjects(NoticeFirestore::class.java)
+                        .filter { it.isActive && (it.expiresAt <= 0L || it.expiresAt > now) })
+                }
+            }
+        awaitClose { subscription.remove() }
+    }
+
+    suspend fun deactivateNotice(id: String) {
+        try {
+            firestore.collection("notices").document(id).update("isActive", false).await()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deactivating notice", e)
         }
     }
 

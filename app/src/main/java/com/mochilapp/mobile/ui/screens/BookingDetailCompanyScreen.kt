@@ -98,13 +98,13 @@ fun BookingDetailCompanyScreen(
                         Spacer(Modifier.height(16.dp))
                         Row(modifier = Modifier.fillMaxWidth()) {
                             TicketInfoItem(t("people").uppercase(), "${booking.slots} pers.", Modifier.weight(1f))
-                            TicketInfoItem("TOTAL", "$${booking.totalPrice} MXN", Modifier.weight(1f))
+                            TicketInfoItem("TOTAL", "${formatMxn(booking.totalPrice)} MXN", Modifier.weight(1f))
                         }
 
                         if (booking.discountAmount > 0) {
                             Spacer(Modifier.height(16.dp))
                             Text(
-                                text = "Descuento aplicado: $${booking.discountAmount} (${booking.promoCode})",
+                                text = "Descuento aplicado: ${formatMxn(booking.discountAmount)} (${booking.promoCode})",
                                 color = Color(0xFF1D8348),
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold

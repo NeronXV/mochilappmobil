@@ -44,7 +44,9 @@ fun AddServiceScreen(
     val selectedLat by viewModel.selectedLat.collectAsState()
     val selectedLng by viewModel.selectedLng.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val serviceError by viewModel.serviceError.collectAsState()
     val scrollState = rememberScrollState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -54,7 +56,14 @@ fun AddServiceScreen(
 
     val isEditing = draft.editingServiceId != null
 
+    LaunchedEffect(serviceError) {
+        serviceError?.let { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text(if (isEditing) "Editar Servicio" else "Publicar Experiencia", fontWeight = FontWeight.Black) },

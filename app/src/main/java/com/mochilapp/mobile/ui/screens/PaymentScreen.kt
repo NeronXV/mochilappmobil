@@ -114,7 +114,7 @@ fun PaymentScreen(
                                 }
                                 Spacer(Modifier.width(8.dp))
                                 Text(
-                                    text = "-$${b.discountAmount} MXN",
+                                    text = "-${formatMxn(b.discountAmount)} MXN",
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFF2ECC71)
@@ -187,7 +187,7 @@ fun PaymentScreen(
                 if (isProcessing) {
                     CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                 } else {
-                    Text("Pagar $${currentBooking?.totalPrice ?: ""}", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text("Pagar ${currentBooking?.totalPrice?.let { formatMxn(it) } ?: ""}", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 }
             }
             
@@ -241,7 +241,7 @@ fun PaymentScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     Row(modifier = Modifier.fillMaxWidth()) {
                         TicketInfoItem("PERSONAS", "${currentBooking?.slots} pers.", Modifier.weight(1f))
-                        TicketInfoItem("TOTAL", "$${currentBooking?.totalPrice} MXN", Modifier.weight(1f))
+                        TicketInfoItem("TOTAL", "${currentBooking?.totalPrice?.let { formatMxn(it) } ?: "--"} MXN", Modifier.weight(1f))
                     }
                     
                     Spacer(modifier = Modifier.height(24.dp))

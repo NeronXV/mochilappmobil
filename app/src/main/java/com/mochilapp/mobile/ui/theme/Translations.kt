@@ -116,7 +116,18 @@ object Translations {
         "mark_completed" to mapOf("es" to "Marcar como ejecutado", "en" to "Mark as completed", "fr" to "Marquer comme terminé"),
         "invalid_booking_msg" to mapOf("es" to "Esta reserva no pertenece a tu negocio o no está pagada.", "en" to "This booking doesn't belong to your business or isn't paid.", "fr" to "Cette réservation n'appartient pas à votre entreprise ou n'est pas payée."),
         "booking_validated_success" to mapOf("es" to "Reserva validada correctamente", "en" to "Booking validated successfully", "fr" to "Réservation validée avec succès"),
-        "service_completed_success" to mapOf("es" to "Servicio marcado como ejecutado", "en" to "Service marked as completed", "fr" to "Service marqué comme terminé")
+        "service_completed_success" to mapOf("es" to "Servicio marcado como ejecutado", "en" to "Service marked as completed", "fr" to "Service marqué comme terminé"),
+
+        // Tipos de servicio (CompanyType) para mostrar al viajero
+        "type_hotel" to mapOf("es" to "Hotel", "en" to "Hotel", "fr" to "Hôtel"),
+        "type_hostel" to mapOf("es" to "Hostal", "en" to "Hostel", "fr" to "Auberge"),
+        "type_property_rental" to mapOf("es" to "Renta vacacional", "en" to "Vacation rental", "fr" to "Location de vacances"),
+        "type_restaurant" to mapOf("es" to "Restaurante", "en" to "Restaurant", "fr" to "Restaurant"),
+        "type_food_stand" to mapOf("es" to "Puesto de comida", "en" to "Food stand", "fr" to "Stand de nourriture"),
+        "type_boat_tour" to mapOf("es" to "Tour en lancha", "en" to "Boat tour", "fr" to "Tour en bateau"),
+        "type_tour_agency" to mapOf("es" to "Agencia de tours", "en" to "Tour agency", "fr" to "Agence de tours"),
+        "type_transport" to mapOf("es" to "Transporte", "en" to "Transport", "fr" to "Transport"),
+        "type_other" to mapOf("es" to "Experiencia", "en" to "Experience", "fr" to "Expérience")
     )
 
     fun getString(key: String, lang: String): String {
@@ -134,4 +145,13 @@ val LocalAppLanguage = compositionLocalOf { AppLanguage.ESPAÑOL }
 fun t(key: String): String {
     val currentLang = LocalAppLanguage.current
     return Translations.getString(key, currentLang.code)
+}
+
+// Nombre legible de un CompanyType almacenado como string ("BOAT_TOUR" -> "Tour en lancha");
+// si el tipo no está catalogado, regresa el valor tal cual
+@Composable
+fun serviceTypeLabel(type: String): String {
+    val key = "type_${type.lowercase()}"
+    val label = t(key)
+    return if (label == key) type else label
 }

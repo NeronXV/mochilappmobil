@@ -34,9 +34,32 @@ fun BookingFlowScreen(
     var service by remember { mutableStateOf<ServiceFirestore?>(null) }
     var slots by remember { mutableIntStateOf(1) }
     
-    val datePickerState = rememberDatePickerState()
+    // Inicio del día actual (fecha local) expresado en medianoche UTC, como lo maneja el DatePicker
+    val todayUtcStart = remember {
+        val local = java.util.Calendar.getInstance()
+        java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
+            clear()
+            set(
+                local.get(java.util.Calendar.YEAR),
+                local.get(java.util.Calendar.MONTH),
+                local.get(java.util.Calendar.DAY_OF_MONTH)
+            )
+        }.timeInMillis
+    }
+    val datePickerState = rememberDatePickerState(
+        selectableDates = object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis >= todayUtcStart
+            override fun isSelectableYear(year: Int): Boolean =
+                year >= java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+        }
+    )
     var showDatePicker by remember { mutableStateOf(false) }
-    val dateFormatter = remember { java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()) }
+    // El picker entrega millis en medianoche UTC: formatear en UTC para no desfasar el día
+    val dateFormatter = remember {
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).apply {
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }
+    }
     val selectedDateText = datePickerState.selectedDateMillis?.let { dateFormatter.format(java.util.Date(it)) } ?: "Seleccionar fecha"
 
     var selectedTime by remember { mutableStateOf<String?>(null) }
@@ -224,14 +247,14 @@ fun BookingFlowScreen(
                     Column {
                         if (discountAmount > 0) {
                             Text(
-                                text = "$$originalTotal",
+                                text = formatMxn(originalTotal),
                                 style = MaterialTheme.typography.labelSmall.copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough),
                                 color = Color.Gray
                             )
                         }
                         Text(t("total_price"), style = MaterialTheme.typography.labelMedium, color = Color.Gray)
                         Text(
-                            "$$totalPrice", 
+                            formatMxn(totalPrice),
                             style = MaterialTheme.typography.headlineMedium.copy(
                                 fontWeight = FontWeight.Black,
                                 color = if (discountAmount > 0) Color(0xFF2ECC71) else MaterialTheme.colorScheme.primary

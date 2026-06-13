@@ -144,6 +144,67 @@ exports.onPromoCreated = functions.firestore
     });
 
 /**
+ * Firestore trigger: when a business publishes an operational notice,
+ * push it to travelers with affected bookings. Notices with a date target
+ * that day's bookings; general notices target upcoming bookings.
+ */
+exports.onNoticeCreated = functions.firestore
+    .document("notices/{noticeId}")
+    .onCreate(async (snap) => {
+      const notice = snap.data();
+      if (!notice.isActive || !notice.message || !notice.serviceId) return null;
+
+      const db = admin.firestore();
+      let query = db.collection("bookings")
+          .where("serviceId", "==", notice.serviceId)
+          .where("status", "in", ["PAID", "PENDING", "CHECKED_IN"]);
+      if (notice.date) {
+        query = query.where("date", "==", notice.date);
+      }
+      const bookingsSnap = await query.get();
+      if (bookingsSnap.empty) return null;
+
+      // Aviso general: solo reservas de hoy en adelante
+      const today = new Date().toLocaleDateString("en-CA", {
+        timeZone: "America/Mazatlan",
+      });
+      const travelerEmails = [...new Set(
+          bookingsSnap.docs
+              .map((doc) => doc.data())
+              .filter((b) => notice.date || (b.date && b.date >= today))
+              .map((b) => b.travelerEmail)
+              .filter(Boolean)
+      )];
+      if (travelerEmails.length === 0) return null;
+
+      const icons = {URGENT: "🚨", IMPORTANT: "⚠️", INFO: "📢"};
+      const icon = icons[notice.severity] || icons.INFO;
+      const title = `${icon} Aviso de ${notice.companyName || "tu reserva"}`;
+      const body = (notice.serviceName ? `${notice.serviceName}: ` : "") +
+          notice.message;
+
+      const sends = travelerEmails.map(async (email) => {
+        const users = await db.collection("users")
+            .where("email", "==", email)
+            .limit(1)
+            .get();
+        if (users.empty) return null;
+        const token = users.docs[0].data().fcmToken;
+        if (!token) return null;
+        try {
+          return await admin.messaging().send({
+            token: token,
+            notification: {title: title, body: body},
+          });
+        } catch (error) {
+          console.error(`Error sending notice to ${email}:`, error);
+          return null;
+        }
+      });
+      return Promise.all(sends);
+    });
+
+/**
  * Scheduled (8:00 AM daily, La Paz timezone): remind each business owner
  * about today's bookings so they can prepare for their trips/guests.
  */
