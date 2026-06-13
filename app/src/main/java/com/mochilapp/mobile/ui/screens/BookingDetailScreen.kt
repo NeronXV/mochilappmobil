@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.mochilapp.mobile.data.BookingFirestore
 import com.mochilapp.mobile.data.ServiceFirestore
+import com.mochilapp.mobile.data.UserFirestore
 import com.mochilapp.mobile.ui.theme.t
 import com.mochilapp.mobile.ui.viewmodels.BookingViewModel
 import com.mochilapp.mobile.ui.viewmodels.MarketplaceViewModel
@@ -45,6 +46,7 @@ fun BookingDetailScreen(
     val myBookings by bookingViewModel.myBookings.collectAsState()
     val booking = myBookings.find { it.id == bookingId }
     var service by remember { mutableStateOf<ServiceFirestore?>(null) }
+    var ownerContact by remember { mutableStateOf<UserFirestore?>(null) }
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
@@ -52,6 +54,11 @@ fun BookingDetailScreen(
         booking?.let {
             service = marketplaceViewModel.getServiceById(it.serviceId)
         }
+    }
+
+    LaunchedEffect(booking?.ownerEmail) {
+        val email = booking?.ownerEmail
+        if (!email.isNullOrEmpty()) ownerContact = marketplaceViewModel.getUserByEmail(email)
     }
 
     Scaffold(
@@ -222,8 +229,21 @@ fun BookingDetailScreen(
                     Text(t("how_to_get_there"), fontWeight = FontWeight.Bold)
                 }
                 
+                // Contacto directo con la empresa sobre esta reserva
+                ownerContact?.let { owner ->
+                    if (owner.whatsapp.isNotBlank() || owner.phone.isNotBlank()) {
+                        Spacer(Modifier.height(16.dp))
+                        val code = booking.confirmationCode.ifEmpty { "MOCHI-${booking.id.takeLast(6).uppercase()}" }
+                        ContactCompanyButton(
+                            whatsapp = owner.whatsapp,
+                            phone = owner.phone,
+                            message = "¡Hola! Tengo una reserva en \"${booking.serviceName}\" para el ${booking.date} (código $code). Tengo una pregunta 🎒"
+                        )
+                    }
+                }
+
                 Spacer(Modifier.height(16.dp))
-                
+
                 TextButton(onClick = onBack) {
                     Text(t("continue"), color = Color.Gray)
                 }

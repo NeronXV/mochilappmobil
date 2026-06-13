@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mochilapp.mobile.data.PromoFirestore
 import com.mochilapp.mobile.data.ReviewFirestore
 import com.mochilapp.mobile.data.ServiceFirestore
+import com.mochilapp.mobile.data.UserFirestore
 import com.mochilapp.mobile.repository.FirebaseRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -70,6 +71,10 @@ class MarketplaceViewModel(private val repository: FirebaseRepository) : ViewMod
     // resolver los IDs de "Mis Aventuras" a tarjetas en el perfil.
     val allServices: StateFlow<List<ServiceFirestore>> = repository.getAllServices()
         .map { list -> list.filter { it.isVisible } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Empresas para la fila de círculos del home del viajero.
+    val companies: StateFlow<List<UserFirestore>> = repository.getCompanies()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val recommendedServices: StateFlow<List<ServiceFirestore>> = repository.getAllServices()
@@ -207,6 +212,10 @@ class MarketplaceViewModel(private val repository: FirebaseRepository) : ViewMod
 
     fun getReviewsForService(serviceId: String): Flow<List<ReviewFirestore>> =
         repository.getReviewsForService(serviceId)
+
+    // Contacto de la empresa dueña de un servicio (WhatsApp/teléfono).
+    suspend fun getUserByEmail(email: String): com.mochilapp.mobile.data.UserFirestore? =
+        repository.getUserByEmail(email)
 
     fun addReview(serviceId: String, authorName: String, rating: Int, comment: String) {
         viewModelScope.launch {

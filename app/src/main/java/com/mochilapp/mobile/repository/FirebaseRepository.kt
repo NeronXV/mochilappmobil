@@ -39,6 +39,36 @@ class FirebaseRepository {
         }
     }
 
+    // Busca la empresa dueña de un servicio por su email, para exponer su
+    // WhatsApp/teléfono al viajero (el contacto vive en el doc del usuario).
+    suspend fun getUserByEmail(email: String): UserFirestore? {
+        return try {
+            firestore.collection("users")
+                .whereEqualTo("email", email)
+                .limit(1)
+                .get().await()
+                .toObjects(UserFirestore::class.java)
+                .firstOrNull()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting user by email", e)
+            null
+        }
+    }
+
+    // Empresas para la fila de círculos del viajero ("abierto ahora").
+    fun getCompanies(): Flow<List<UserFirestore>> = callbackFlow {
+        val subscription = firestore.collection("users")
+            .whereEqualTo("role", "COMPANY")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e(TAG, "Error listening to companies", error)
+                    return@addSnapshotListener
+                }
+                if (snapshot != null) trySend(snapshot.toObjects(UserFirestore::class.java))
+            }
+        awaitClose { subscription.remove() }
+    }
+
     suspend fun saveUserProfile(user: UserFirestore) {
         try {
             firestore.collection("users").document(user.uid).set(user).await()

@@ -3,11 +3,14 @@ package com.mochilapp.mobile.ui.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -26,6 +29,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.painterResource
@@ -33,6 +37,7 @@ import coil.compose.AsyncImage
 import com.mochilapp.mobile.R
 import com.mochilapp.mobile.data.CompanyType
 import com.mochilapp.mobile.data.ServiceFirestore
+import com.mochilapp.mobile.data.UserFirestore
 import com.mochilapp.mobile.ui.theme.t
 import com.mochilapp.mobile.ui.viewmodels.AuthViewModel
 import com.mochilapp.mobile.ui.viewmodels.CompanyViewModel
@@ -63,6 +68,18 @@ fun TravelerDashboard(
     val isSeeding by viewModel.isSeeding.collectAsState()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+
+    // Fila de círculos de empresas ("abierto ahora" = algún servicio con isOpen)
+    val companies by viewModel.companies.collectAsState()
+    val allServices by viewModel.allServices.collectAsState()
+    var selectedCircle by remember { mutableStateOf<CompanyCircle?>(null) }
+    val circles = remember(companies, allServices) {
+        companies.mapNotNull { company ->
+            val owned = allServices.filter { it.ownerEmail == company.email }
+            if (owned.isEmpty()) null
+            else CompanyCircle(company, owned, owned.any { it.isOpen })
+        }.sortedByDescending { it.openNow }
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -151,6 +168,13 @@ fun TravelerDashboard(
                     .background(MaterialTheme.colorScheme.background),
                 contentPadding = PaddingValues(bottom = 120.dp)
             ) {
+                // Círculos de empresas con "abierto ahora" (estilo stories)
+                if (circles.isNotEmpty()) {
+                    item {
+                        BusinessCirclesRow(circles = circles, onCircleClick = { selectedCircle = it })
+                    }
+                }
+
                 // Flash Promos Section (Mochi-Alertas)
                 if (promos.isNotEmpty()) {
                     item {
@@ -278,6 +302,162 @@ fun TravelerDashboard(
                     Text("Generando experiencias...", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
+        }
+
+        selectedCircle?.let { circle ->
+            CompanyCircleSheet(
+                circle = circle,
+                onServiceClick = { id -> selectedCircle = null; onServiceClick(id) },
+                onDismiss = { selectedCircle = null }
+            )
+        }
+    }
+}
+
+// Fila de círculos de empresas estilo "stories": anillo verde = abierto ahora.
+data class CompanyCircle(
+    val company: UserFirestore,
+    val services: List<ServiceFirestore>,
+    val openNow: Boolean
+)
+
+@Composable
+fun BusinessCirclesRow(circles: List<CompanyCircle>, onCircleClick: (CompanyCircle) -> Unit) {
+    LazyRow(
+        modifier = Modifier.padding(top = 12.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        items(circles) { circle ->
+            CompanyCircleItem(circle = circle, onClick = { onCircleClick(circle) })
+        }
+    }
+}
+
+@Composable
+fun CompanyCircleItem(circle: CompanyCircle, onClick: () -> Unit) {
+    val name = circle.company.businessName.ifBlank { circle.company.name }
+    val ringColor = if (circle.openNow) Color(0xFF2ECC71) else Color(0xFFCED4DA)
+    val image = circle.company.profileImageUrl.ifBlank {
+        circle.services.firstOrNull { it.imageUrl.isNotBlank() }?.imageUrl ?: ""
+    }
+    Column(
+        modifier = Modifier
+            .width(68.dp)
+            .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(contentAlignment = Alignment.BottomEnd) {
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .border(2.dp, ringColor, CircleShape)
+                    .padding(3.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFE9ECEF)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (image.isNotBlank()) {
+                    AsyncImage(
+                        model = image,
+                        contentDescription = name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Text(
+                        name.take(1).uppercase(),
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 22.sp
+                    )
+                }
+            }
+            if (circle.openNow) {
+                Box(
+                    modifier = Modifier
+                        .size(16.dp)
+                        .clip(CircleShape)
+                        .background(Color.White),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(11.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF2ECC71))
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(5.dp))
+        Text(
+            name,
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CompanyCircleSheet(
+    circle: CompanyCircle,
+    onServiceClick: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val name = circle.company.businessName.ifBlank { circle.company.name }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding()
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(name, fontWeight = FontWeight.Black, fontSize = 20.sp, modifier = Modifier.weight(1f))
+                Surface(
+                    color = if (circle.openNow) Color(0xFFD4EFDF) else Color(0xFFF1F3F5),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        if (circle.openNow) "Abierto ahora" else "Cerrado",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (circle.openNow) Color(0xFF1D8348) else Color.Gray
+                    )
+                }
+            }
+
+            if (circle.company.businessDescription.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text(circle.company.businessDescription, fontSize = 13.sp, color = Color.Gray)
+            }
+
+            Spacer(Modifier.height(16.dp))
+            ContactCompanyButton(
+                whatsapp = circle.company.whatsapp,
+                phone = circle.company.phone,
+                message = "¡Hola $name! Te encontré en Mochilapp 🎒 y tengo una pregunta."
+            )
+
+            Spacer(Modifier.height(20.dp))
+            Text("Sus experiencias", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Spacer(Modifier.height(12.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                circle.services.take(8).forEach { service ->
+                    SavedAdventureCard(
+                        service = service,
+                        brandColor = MaterialTheme.colorScheme.primary,
+                        onClick = { onServiceClick(service.id) }
+                    )
+                }
+            }
+            Spacer(Modifier.height(24.dp))
         }
     }
 }

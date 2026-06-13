@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.mochilapp.mobile.data.ServiceFirestore
+import com.mochilapp.mobile.data.UserFirestore
 import com.mochilapp.mobile.ui.theme.serviceTypeLabel
 import com.mochilapp.mobile.ui.theme.t
 import com.mochilapp.mobile.ui.viewmodels.MarketplaceViewModel
@@ -39,6 +40,7 @@ fun ServiceDetailScreen(
     onToggleSave: () -> Unit = {}
 ) {
     var service by remember { mutableStateOf<ServiceFirestore?>(null) }
+    var ownerContact by remember { mutableStateOf<UserFirestore?>(null) }
     var refreshKey by remember { mutableIntStateOf(0) }
     val scrollState = rememberScrollState()
     val context = LocalContext.current
@@ -50,6 +52,11 @@ fun ServiceDetailScreen(
 
     LaunchedEffect(serviceId, refreshKey) {
         service = viewModel.getServiceById(serviceId)
+    }
+
+    LaunchedEffect(service?.ownerEmail) {
+        val email = service?.ownerEmail
+        if (!email.isNullOrEmpty()) ownerContact = viewModel.getUserByEmail(email)
     }
 
     Scaffold(
@@ -319,6 +326,18 @@ fun ServiceDetailScreen(
                         }
                     }
                     
+                    // Contacto directo con la empresa (cercanía y confianza)
+                    ownerContact?.let { owner ->
+                        if (owner.whatsapp.isNotBlank() || owner.phone.isNotBlank()) {
+                            ContactCompanyButton(
+                                whatsapp = owner.whatsapp,
+                                phone = owner.phone,
+                                message = "¡Hola! Vi \"${s.name}\" en Mochilapp 🎒 y tengo una pregunta."
+                            )
+                            Spacer(Modifier.height(16.dp))
+                        }
+                    }
+
                     Spacer(Modifier.height(32.dp))
 
                     // Reseñas
