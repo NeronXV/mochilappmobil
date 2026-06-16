@@ -58,8 +58,9 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
         date: String, 
         slots: Int, 
         totalPrice: Double, 
-        ownerEmail: String, 
+        ownerEmail: String,
         departureTime: String = "",
+        checkOutDate: String = "",
         promoId: String = "",
         promoCode: String = "",
         discountPercent: Int = 0,
@@ -73,6 +74,10 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
             _bookingError.value = "No se pueden hacer reservas en fechas pasadas"
             return
         }
+        if (checkOutDate.isNotEmpty() && checkOutDate <= date) {
+            _bookingError.value = "La fecha de salida debe ser posterior a la de entrada"
+            return
+        }
         viewModelScope.launch {
             // Generate a professional confirmation code MOCHI-XXXXXX
             val randomPart = java.util.UUID.randomUUID().toString().take(6).uppercase()
@@ -84,6 +89,7 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
                 travelerEmail = effectiveEmail,
                 travelerName = travelerName,
                 date = date,
+                checkOutDate = checkOutDate,
                 slots = slots,
                 totalPrice = totalPrice,
                 status = "PENDING",

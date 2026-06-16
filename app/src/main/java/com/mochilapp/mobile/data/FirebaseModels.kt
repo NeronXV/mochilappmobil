@@ -90,6 +90,8 @@ data class BookingFirestore(
     val travelerEmail: String = "",
     val travelerName: String = "",
     val date: String = "",
+    // Para hospedaje: fecha de salida (check-out). El campo `date` es la entrada (check-in).
+    val checkOutDate: String = "",
     val departureTime: String = "",
     val slots: Int = 1,
     val totalPrice: Double = 0.0,

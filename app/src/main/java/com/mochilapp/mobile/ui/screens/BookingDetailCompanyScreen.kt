@@ -92,8 +92,13 @@ fun BookingDetailCompanyScreen(
                         Spacer(Modifier.height(12.dp))
                         
                         Row(modifier = Modifier.fillMaxWidth()) {
-                            TicketInfoItem(t("date").uppercase(), booking.date, Modifier.weight(1f))
-                            TicketInfoItem("HORA", booking.departureTime.ifEmpty { "--" }, Modifier.weight(1f))
+                            if (booking.checkOutDate.isNotEmpty()) {
+                                TicketInfoItem("ENTRADA", booking.date, Modifier.weight(1f))
+                                TicketInfoItem("SALIDA", booking.checkOutDate, Modifier.weight(1f))
+                            } else {
+                                TicketInfoItem(t("date").uppercase(), booking.date, Modifier.weight(1f))
+                                TicketInfoItem("HORA", booking.departureTime.ifEmpty { "--" }, Modifier.weight(1f))
+                            }
                         }
                         Spacer(Modifier.height(16.dp))
                         Row(modifier = Modifier.fillMaxWidth()) {

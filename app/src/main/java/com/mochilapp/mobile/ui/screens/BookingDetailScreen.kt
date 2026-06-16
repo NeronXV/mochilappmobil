@@ -41,6 +41,7 @@ fun BookingDetailScreen(
     bookingId: String,
     bookingViewModel: BookingViewModel,
     marketplaceViewModel: MarketplaceViewModel,
+    onPayNow: (String) -> Unit,
     onBack: () -> Unit
 ) {
     val myBookings by bookingViewModel.myBookings.collectAsState()
@@ -145,8 +146,13 @@ fun BookingDetailScreen(
                         Spacer(Modifier.height(16.dp))
                         
                         Row(modifier = Modifier.fillMaxWidth()) {
-                            TicketInfoItem(t("date").uppercase(), booking.date, Modifier.weight(1f))
-                            TicketInfoItem("HORA", booking.departureTime.ifEmpty { "--" }, Modifier.weight(1f))
+                            if (booking.checkOutDate.isNotEmpty()) {
+                                TicketInfoItem("ENTRADA", booking.date, Modifier.weight(1f))
+                                TicketInfoItem("SALIDA", booking.checkOutDate, Modifier.weight(1f))
+                            } else {
+                                TicketInfoItem(t("date").uppercase(), booking.date, Modifier.weight(1f))
+                                TicketInfoItem("HORA", booking.departureTime.ifEmpty { "--" }, Modifier.weight(1f))
+                            }
                         }
                         Spacer(Modifier.height(16.dp))
                         Row(modifier = Modifier.fillMaxWidth()) {
@@ -188,6 +194,21 @@ fun BookingDetailScreen(
                 }
 
                 Spacer(Modifier.height(32.dp))
+
+                // Reserva sin pagar: permitir completar el pago
+                if (booking.status == "PENDING") {
+                    Button(
+                        onClick = { onPayNow(booking.id) },
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Text("Pagar ahora · ${formatMxn(booking.totalPrice)}", fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.height(16.dp))
+                }
 
                 // Check-in "Vive": el viajero registra su visita en el lugar
                 if (booking.status == "PAID" || booking.status == "CHECKED_IN") {

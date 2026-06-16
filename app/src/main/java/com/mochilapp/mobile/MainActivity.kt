@@ -411,6 +411,7 @@ fun MochilappApp(currentLanguage: AppLanguage, onLanguageChange: (AppLanguage) -
                     bookingId = key.bookingId,
                     bookingViewModel = bookingViewModel,
                     marketplaceViewModel = marketplaceViewModel,
+                    onPayNow = { id -> backStack.add(Destination.Payment(id)) },
                     onBack = { backStack.removeAt(backStack.size - 1) }
                 )
             }

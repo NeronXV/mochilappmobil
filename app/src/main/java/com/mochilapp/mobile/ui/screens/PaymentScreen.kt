@@ -97,7 +97,11 @@ fun PaymentScreen(
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Resumen de tu aventura", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
                         Text(b.serviceName.ifEmpty { "Experiencia Mochilapp" }, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Text("${b.date} • ${b.slots} personas", fontSize = 14.sp)
+                        if (b.checkOutDate.isNotEmpty()) {
+                            Text("${b.date} → ${b.checkOutDate} • ${b.slots} huéspedes", fontSize = 14.sp)
+                        } else {
+                            Text("${b.date} • ${b.slots} personas", fontSize = 14.sp)
+                        }
                         if (b.departureTime.isNotEmpty()) Text("Hora: ${b.departureTime}", fontSize = 14.sp)
                         
                         if (b.discountAmount > 0) {
@@ -235,8 +239,13 @@ fun PaymentScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     Row(modifier = Modifier.fillMaxWidth()) {
-                        TicketInfoItem("FECHA", currentBooking?.date ?: "--", Modifier.weight(1f))
-                        TicketInfoItem("HORA", currentBooking?.departureTime?.ifEmpty { "Por confirmar" } ?: "N/A", Modifier.weight(1f))
+                        if (currentBooking?.checkOutDate?.isNotEmpty() == true) {
+                            TicketInfoItem("ENTRADA", currentBooking.date, Modifier.weight(1f))
+                            TicketInfoItem("SALIDA", currentBooking.checkOutDate, Modifier.weight(1f))
+                        } else {
+                            TicketInfoItem("FECHA", currentBooking?.date ?: "--", Modifier.weight(1f))
+                            TicketInfoItem("HORA", currentBooking?.departureTime?.ifEmpty { "Por confirmar" } ?: "N/A", Modifier.weight(1f))
+                        }
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                     Row(modifier = Modifier.fillMaxWidth()) {

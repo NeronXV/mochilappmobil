@@ -46,13 +46,15 @@ fun BookingFlowScreen(
             )
         }.timeInMillis
     }
-    val datePickerState = rememberDatePickerState(
-        selectableDates = object : SelectableDates {
+    val selectableDates = remember {
+        object : SelectableDates {
             override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis >= todayUtcStart
             override fun isSelectableYear(year: Int): Boolean =
                 year >= java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
         }
-    )
+    }
+    val datePickerState = rememberDatePickerState(selectableDates = selectableDates)
+    val dateRangePickerState = rememberDateRangePickerState(selectableDates = selectableDates)
     var showDatePicker by remember { mutableStateOf(false) }
     // El picker entrega millis en medianoche UTC: formatear en UTC para no desfasar el día
     val dateFormatter = remember {
@@ -60,7 +62,16 @@ fun BookingFlowScreen(
             timeZone = java.util.TimeZone.getTimeZone("UTC")
         }
     }
-    val selectedDateText = datePickerState.selectedDateMillis?.let { dateFormatter.format(java.util.Date(it)) } ?: "Seleccionar fecha"
+
+    // Hospedaje usa rango entrada→salida; el resto, una sola fecha
+    val isLodging = service?.type == "HOTEL" || service?.type == "HOSTEL" || service?.type == "PROPERTY_RENTAL"
+    val checkInMillis = if (isLodging) dateRangePickerState.selectedStartDateMillis else datePickerState.selectedDateMillis
+    val checkOutMillis = dateRangePickerState.selectedEndDateMillis
+    val checkInText = checkInMillis?.let { dateFormatter.format(java.util.Date(it)) } ?: ""
+    val checkOutText = checkOutMillis?.let { dateFormatter.format(java.util.Date(it)) } ?: ""
+    val nights = if (isLodging && checkInMillis != null && checkOutMillis != null)
+        ((checkOutMillis - checkInMillis) / 86_400_000L).toInt() else 0
+    val dateSelected = if (isLodging) nights > 0 else checkInMillis != null
 
     var selectedTime by remember { mutableStateOf<String?>(null) }
     val bookingsByDate by bookingViewModel.currentBookings.collectAsState()
@@ -81,9 +92,9 @@ fun BookingFlowScreen(
         service = marketplaceViewModel.getServiceById(serviceId)
     }
 
-    LaunchedEffect(selectedDateText) {
-        if (datePickerState.selectedDateMillis != null) {
-            bookingViewModel.updateAvailabilityQuery(serviceId, selectedDateText)
+    LaunchedEffect(checkInText) {
+        if (checkInText.isNotEmpty()) {
+            bookingViewModel.updateAvailabilityQuery(serviceId, checkInText)
         }
     }
 
@@ -102,7 +113,20 @@ fun BookingFlowScreen(
                 }
             }
         ) {
-            DatePicker(state = datePickerState)
+            if (isLodging) {
+                DateRangePicker(
+                    state = dateRangePickerState,
+                    title = {
+                        Text(
+                            "Selecciona entrada y salida",
+                            modifier = Modifier.padding(start = 24.dp, end = 12.dp, top = 16.dp)
+                        )
+                    },
+                    modifier = Modifier.height(520.dp)
+                )
+            } else {
+                DatePicker(state = datePickerState)
+            }
         }
     }
 
@@ -167,12 +191,45 @@ fun BookingFlowScreen(
                             .fillMaxWidth()
                             .clickable { showDatePicker = true }
                     ) {
-                        Text(t("date"), fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(8.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.CalendarToday, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(12.dp))
-                            Text(selectedDateText, color = if (datePickerState.selectedDateMillis == null) Color.Gray else Color.Black)
+                        if (isLodging) {
+                            Text("Fechas de estancia", fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(8.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("Entrada", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.CalendarToday, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(checkInText.ifEmpty { "Elegir" }, color = if (checkInText.isEmpty()) Color.Gray else Color.Black)
+                                    }
+                                }
+                                Text("→", color = Color.Gray, modifier = Modifier.padding(horizontal = 8.dp))
+                                Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                                    Text("Salida", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.CalendarToday, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(checkOutText.ifEmpty { "Elegir" }, color = if (checkOutText.isEmpty()) Color.Gray else Color.Black)
+                                    }
+                                }
+                            }
+                            if (nights > 0) {
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "$nights ${if (nights == 1) "noche" else "noches"}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        } else {
+                            Text(t("date"), fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.CalendarToday, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(12.dp))
+                                Text(checkInText.ifEmpty { "Seleccionar fecha" }, color = if (checkInText.isEmpty()) Color.Gray else Color.Black)
+                            }
                         }
                     }
 
@@ -206,7 +263,7 @@ fun BookingFlowScreen(
 
                     // Availability Info
                     service?.let { s ->
-                        if (s.capacity > 0 && datePickerState.selectedDateMillis != null) {
+                        if (!isLodging && s.capacity > 0 && checkInMillis != null) {
                             val usedSlots = bookingsByDate
                                 .filter { if (s.departureTimes.isNotEmpty()) it.departureTime == selectedTime else true }
                                 .sumOf { it.slots }
@@ -229,7 +286,9 @@ fun BookingFlowScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            val originalTotal = (service?.price ?: 0.0) * slots
+            // Hospedaje cobra por noche; el resto, por persona/cupo
+            val priceUnits = if (isLodging) nights else slots
+            val originalTotal = (service?.price ?: 0.0) * priceUnits
             val discountPercent = if (activePromo?.serviceId == serviceId) activePromo?.discountPercent ?: 0 else 0
             val discountAmount = originalTotal * (discountPercent.toDouble() / 100.0)
             val totalPrice = originalTotal - discountAmount
@@ -260,16 +319,24 @@ fun BookingFlowScreen(
                                 color = if (discountAmount > 0) Color(0xFF2ECC71) else MaterialTheme.colorScheme.primary
                             )
                         )
+                        if (isLodging && nights > 0) {
+                            Text(
+                                "${formatMxn(service?.price ?: 0.0)} × $nights ${if (nights == 1) "noche" else "noches"}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.Gray
+                            )
+                        }
                     }
                     Button(
                         onClick = {
                             val currentService = service
-                            if (currentService != null && datePickerState.selectedDateMillis != null) {
+                            if (currentService != null && dateSelected) {
                                 bookingViewModel.createBooking(
                                     serviceId = serviceId,
                                     serviceName = currentService.name,
                                     travelerName = travelerName,
-                                    date = selectedDateText,
+                                    date = checkInText,
+                                    checkOutDate = if (isLodging) checkOutText else "",
                                     slots = slots,
                                     totalPrice = totalPrice,
                                     ownerEmail = currentService.ownerEmail,
@@ -282,8 +349,8 @@ fun BookingFlowScreen(
                                 )
                             }
                         },
-                        enabled = datePickerState.selectedDateMillis != null && 
-                                 service != null && 
+                        enabled = dateSelected &&
+                                 service != null &&
                                  (service?.departureTimes?.isEmpty() == true || selectedTime != null),
                         modifier = Modifier.height(56.dp).padding(start = 16.dp),
                         shape = RoundedCornerShape(16.dp),

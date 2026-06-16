@@ -139,9 +139,13 @@ fun BookingCard(booking: BookingFirestore, onClick: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.Gray)
                     Spacer(Modifier.width(4.dp))
-                    Text(text = booking.date, fontSize = 12.sp, color = Color.Gray)
-                    Spacer(Modifier.width(12.dp))
-                    Text(text = "${booking.slots} personas", fontSize = 12.sp, color = Color.Gray)
+                    if (booking.checkOutDate.isNotEmpty()) {
+                        Text(text = "${booking.date} → ${booking.checkOutDate}", fontSize = 12.sp, color = Color.Gray)
+                    } else {
+                        Text(text = booking.date, fontSize = 12.sp, color = Color.Gray)
+                        Spacer(Modifier.width(12.dp))
+                        Text(text = "${booking.slots} personas", fontSize = 12.sp, color = Color.Gray)
+                    }
                 }
             }
             
