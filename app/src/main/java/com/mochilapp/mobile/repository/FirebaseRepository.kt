@@ -217,7 +217,10 @@ class FirebaseRepository {
                 "isRecommended" to false,
                 "latitude" to service.latitude,
                 "longitude" to service.longitude,
-                "address" to service.address
+                "address" to service.address,
+                "offersPickup" to service.offersPickup,
+                "offersDelivery" to service.offersDelivery,
+                "deliveryFee" to service.deliveryFee
             )
             firestore.collection("services").add(fields).await()
         } catch (e: Exception) {
@@ -267,7 +270,10 @@ class FirebaseRepository {
                 "isOpen" to service.isOpen,
                 "address" to service.address,
                 "latitude" to service.latitude,
-                "longitude" to service.longitude
+                "longitude" to service.longitude,
+                "offersPickup" to service.offersPickup,
+                "offersDelivery" to service.offersDelivery,
+                "deliveryFee" to service.deliveryFee
             )
             firestore.collection("services").document(id).update(fields).await()
         } catch (e: Exception) {

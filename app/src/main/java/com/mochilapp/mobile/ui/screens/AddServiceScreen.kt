@@ -300,6 +300,38 @@ fun AddServiceScreen(
                                 }
                             }
 
+                            // Food Stand: opciones de entrega (el pedido es por orden, no por persona)
+                            if (draft.type == CompanyType.FOOD_STAND) {
+                                Text(
+                                    "Entrega del pedido",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = Color(0xFF106154)
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Storefront, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(20.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Para recoger en el puesto", modifier = Modifier.weight(1f))
+                                    Switch(checked = draft.offersPickup, onCheckedChange = { viewModel.updateServiceDraft(draft.copy(offersPickup = it)) })
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.DeliveryDining, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(20.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Entrega a domicilio", modifier = Modifier.weight(1f))
+                                    Switch(checked = draft.offersDelivery, onCheckedChange = { viewModel.updateServiceDraft(draft.copy(offersDelivery = it)) })
+                                }
+                                if (draft.offersDelivery) {
+                                    OutlinedTextField(
+                                        value = draft.deliveryFee,
+                                        onValueChange = { if (it.all { char -> char.isDigit() || char == '.' }) viewModel.updateServiceDraft(draft.copy(deliveryFee = it)) },
+                                        label = { Text("Costo de envío (MXN)") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null, tint = Color(0xFF2E7D32)) }
+                                    )
+                                }
+                            }
+
                             // Transport Specifics
                             if (draft.type == CompanyType.TRANSPORT) {
                                 OutlinedTextField(
@@ -455,7 +487,10 @@ fun AddServiceScreen(
                             isVisible = true,
                             address = draft.address,
                             latitude = selectedLat,
-                            longitude = selectedLng
+                            longitude = selectedLng,
+                            offersPickup = draft.offersPickup,
+                            offersDelivery = draft.offersDelivery,
+                            deliveryFee = if (draft.offersDelivery) draft.deliveryFee.toDoubleOrNull() ?: 0.0 else 0.0
                         )
                         val onDone = {
                             viewModel.clearServiceDraft()

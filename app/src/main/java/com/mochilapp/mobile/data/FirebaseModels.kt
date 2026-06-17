@@ -81,7 +81,12 @@ data class ServiceFirestore(
     val isRecommended: Boolean = false,
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
-    val address: String = ""
+    val address: String = "",
+    // Puesto de comida: el pedido se cobra por orden (no por persona) y se
+    // entrega para recoger o a domicilio. deliveryFee se suma cuando es domicilio.
+    val offersPickup: Boolean = true,
+    val offersDelivery: Boolean = false,
+    val deliveryFee: Double = 0.0
 )
 
 data class BookingFirestore(

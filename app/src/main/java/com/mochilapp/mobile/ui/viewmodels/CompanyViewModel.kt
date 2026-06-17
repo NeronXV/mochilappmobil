@@ -37,6 +37,10 @@ data class ServiceDraft(
     val businessHours: String = "",
     val isOpen: Boolean = true,
     val address: String = "",
+    // Puesto de comida: opciones de entrega y costo de envío a domicilio
+    val offersPickup: Boolean = true,
+    val offersDelivery: Boolean = false,
+    val deliveryFee: String = "",
     // null = creando servicio nuevo; con valor = editando ese servicio
     val editingServiceId: String? = null,
     val existingImageUrl: String = ""
@@ -217,6 +221,9 @@ class CompanyViewModel(
             businessHours = service.businessHours["general"] ?: "",
             isOpen = service.isOpen,
             address = service.address,
+            offersPickup = service.offersPickup,
+            offersDelivery = service.offersDelivery,
+            deliveryFee = if (service.deliveryFee % 1.0 == 0.0) service.deliveryFee.toInt().toString() else service.deliveryFee.toString(),
             editingServiceId = service.id,
             existingImageUrl = service.imageUrl
         )
