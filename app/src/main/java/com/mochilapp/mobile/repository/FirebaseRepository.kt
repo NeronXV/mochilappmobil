@@ -144,9 +144,25 @@ class FirebaseRepository {
         val subscription = firestore.collection("services")
             .whereEqualTo("ownerEmail", email)
             .addSnapshotListener { snapshot, error ->
-                if (error != null) return@addSnapshotListener
+                if (error != null) {
+                    // No tragar el error: un fallo de permisos o de red dejaba el
+                    // panel vacío sin pista alguna. Ahora queda en el Logcat.
+                    Log.e(TAG, "Error escuchando servicios de '$email'", error)
+                    return@addSnapshotListener
+                }
                 if (snapshot != null) {
-                    trySend(snapshot.toObjects(ServiceFirestore::class.java))
+                    // Deserializar documento por documento en vez de snapshot.toObjects():
+                    // un solo doc con un campo de tipo incompatible (p. ej. creado desde
+                    // el panel web) ya no hace desaparecer TODOS los servicios.
+                    val services = snapshot.documents.mapNotNull { doc ->
+                        try {
+                            doc.toObject(ServiceFirestore::class.java)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Servicio '${doc.id}' ignorado: no se pudo leer", e)
+                            null
+                        }
+                    }
+                    trySend(services)
                 }
             }
         awaitClose { subscription.remove() }
