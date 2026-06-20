@@ -32,6 +32,10 @@ sealed interface Destination : NavKey {
     @Serializable
     data class BookingFlow(val serviceId: String) : Destination
 
+    // Pedido de puesto de comida (carrito de productos), alterno a BookingFlow
+    @Serializable
+    data class FoodOrder(val serviceId: String) : Destination
+
     @Serializable
     data class Payment(val bookingId: String) : Destination
 

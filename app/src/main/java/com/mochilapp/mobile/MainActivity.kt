@@ -313,7 +313,22 @@ fun MochilappApp(currentLanguage: AppLanguage, onLanguageChange: (AppLanguage) -
                     onBack = { backStack.removeAt(backStack.size - 1) },
                     userName = userName,
                     isSaved = userProfile?.savedServices?.contains(key.serviceId) == true,
-                    onToggleSave = { authViewModel.toggleSavedService(key.serviceId) }
+                    onToggleSave = { authViewModel.toggleSavedService(key.serviceId) },
+                    onOrderClick = { id -> backStack.add(Destination.FoodOrder(id)) }
+                )
+            }
+            entry<Destination.FoodOrder> { key ->
+                val bookingViewModel: BookingViewModel = viewModel(
+                    key = "booking_$userUid",
+                    factory = ViewModelFactory(repository = repository, userEmail = userEmail)
+                )
+                FoodOrderScreen(
+                    serviceId = key.serviceId,
+                    travelerName = userName,
+                    marketplaceViewModel = marketplaceViewModel,
+                    bookingViewModel = bookingViewModel,
+                    onPaymentNavigate = { id -> backStack.add(Destination.Payment(id)) },
+                    onBack = { backStack.removeAt(backStack.size - 1) }
                 )
             }
             entry<Destination.BookingFlow> { key ->

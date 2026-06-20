@@ -303,6 +303,14 @@ class CompanyViewModel(
         }
     }
 
+    // Avanza el estado de preparación de una comanda de puesto de comida
+    // (PREPARING → READY → DELIVERED). No toca el status de pago.
+    fun updateOrderStatus(bookingId: String, orderStatus: String) {
+        viewModelScope.launch {
+            repository.updateBookingFields(bookingId, mapOf("orderStatus" to orderStatus))
+        }
+    }
+
     // Check-in de una reserva verificada por código de ticket
     fun checkInBooking(bookingId: String) {
         viewModelScope.launch {

@@ -89,6 +89,13 @@ data class ServiceFirestore(
     val deliveryFee: Double = 0.0
 )
 
+// Línea de un pedido de puesto de comida: producto, cantidad y precio unitario.
+data class OrderItemFirestore(
+    val name: String = "",
+    val quantity: Int = 1,
+    val unitPrice: Double = 0.0
+)
+
 data class BookingFirestore(
     @DocumentId val id: String = "",
     val serviceId: String = "",
@@ -116,7 +123,14 @@ data class BookingFirestore(
     val completedBy: String = "",
     // Check-in del viajero ("Vive"): distinto al checkedInAt operativo que
     // marca la empresa. >0 cuando el viajero registra su visita en el lugar.
-    val travelerCheckedInAt: Long = 0L
+    val travelerCheckedInAt: Long = 0L,
+    // Puesto de comida: el pedido lleva productos por orden, tipo de entrega y un
+    // estado de preparación propio (orderStatus) distinto al status de pago.
+    val orderItems: List<OrderItemFirestore> = emptyList(),
+    val fulfillmentType: String = "",      // "PICKUP" | "DELIVERY"
+    val deliveryAddress: String = "",
+    val deliveryFee: Double = 0.0,
+    val orderStatus: String = ""           // "PREPARING" | "READY" | "DELIVERED"
 )
 
 data class PostFirestore(

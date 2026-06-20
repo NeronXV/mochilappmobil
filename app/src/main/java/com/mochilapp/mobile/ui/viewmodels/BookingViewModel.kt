@@ -3,6 +3,7 @@ package com.mochilapp.mobile.ui.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mochilapp.mobile.data.BookingFirestore
+import com.mochilapp.mobile.data.OrderItemFirestore
 import com.mochilapp.mobile.repository.FirebaseRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -111,6 +112,66 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
                     "No se pudo crear la reserva: permisos insuficientes. Intenta cerrar sesión y volver a entrar."
                 } else {
                     "No se pudo crear la reserva. Revisa tu conexión e intenta de nuevo."
+                }
+            }
+        }
+    }
+
+    // Pedido de puesto de comida: se cobra por orden (productos + cantidades),
+    // con recoger o entrega a domicilio (+ deliveryFee). Reusa la misma reserva
+    // y el mismo flujo de pago; el puesto lo despacha desde su panel.
+    fun createFoodOrder(
+        serviceId: String,
+        serviceName: String,
+        travelerName: String,
+        ownerEmail: String,
+        items: List<OrderItemFirestore>,
+        fulfillmentType: String,
+        deliveryAddress: String,
+        deliveryFee: Double
+    ) {
+        if (items.isEmpty()) {
+            _bookingError.value = "Agrega al menos un producto a tu pedido"
+            return
+        }
+        if (fulfillmentType == "DELIVERY" && deliveryAddress.isBlank()) {
+            _bookingError.value = "Indica la dirección de entrega"
+            return
+        }
+        viewModelScope.launch {
+            val randomPart = java.util.UUID.randomUUID().toString().take(6).uppercase()
+            val code = "MOCHI-$randomPart"
+            val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                .format(java.util.Date())
+            val subtotal = items.sumOf { it.unitPrice * it.quantity }
+            val fee = if (fulfillmentType == "DELIVERY") deliveryFee else 0.0
+
+            val booking = BookingFirestore(
+                serviceId = serviceId,
+                serviceName = serviceName,
+                travelerEmail = effectiveEmail,
+                travelerName = travelerName,
+                date = today,
+                slots = items.sumOf { it.quantity },
+                totalPrice = subtotal + fee,
+                status = "PENDING",
+                ownerEmail = ownerEmail,
+                confirmationCode = code,
+                orderItems = items,
+                fulfillmentType = fulfillmentType,
+                deliveryAddress = if (fulfillmentType == "DELIVERY") deliveryAddress.trim() else "",
+                deliveryFee = fee,
+                orderStatus = "PREPARING"
+            )
+            try {
+                val id = repository.addBooking(booking)
+                _bookingResult.value = id
+            } catch (e: Exception) {
+                android.util.Log.e("BookingViewModel", "Error creating food order", e)
+                _bookingError.value = if (e.message?.contains("PERMISSION_DENIED") == true) {
+                    "No se pudo crear el pedido: permisos insuficientes. Intenta cerrar sesión y volver a entrar."
+                } else {
+                    "No se pudo crear el pedido. Revisa tu conexión e intenta de nuevo."
                 }
             }
         }

@@ -69,6 +69,15 @@ fun RestaurantModuleScreen(
     }
     val dailyRevenue = activeBookings.sumOf { it.totalPrice }
 
+    // Comandas del puesto: pedidos pagados con productos, los no entregados arriba
+    val foodOrders = remember(bookings, selectedServiceId, selectedDate) {
+        bookings.filter {
+            it.serviceId == selectedServiceId && it.date == selectedDate &&
+                it.status == "PAID" && it.orderItems.isNotEmpty()
+        }.sortedBy { if (it.orderStatus == "DELIVERED") 1 else 0 }
+    }
+    val foodRevenue = foodOrders.sumOf { it.totalPrice }
+
     val menuItems = remember(selectedService) { resolveMenu(selectedService) }
     val availableCount = menuItems.count { it.isAvailable }
     // Con menú real se habilita la edición; con el de muestra solo se invita a crear el propio
@@ -340,9 +349,12 @@ fun RestaurantModuleScreen(
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Column(modifier = Modifier.padding(12.dp)) {
-                                    Text("RESERVAS DÍA", fontSize = 8.sp, fontWeight = FontWeight.Black, color = Color.Gray, letterSpacing = 1.sp)
                                     Text(
-                                        if (isFoodStand) "—" else activeBookings.size.toString(),
+                                        if (isFoodStand) "PEDIDOS DÍA" else "RESERVAS DÍA",
+                                        fontSize = 8.sp, fontWeight = FontWeight.Black, color = Color.Gray, letterSpacing = 1.sp
+                                    )
+                                    Text(
+                                        if (isFoodStand) foodOrders.size.toString() else activeBookings.size.toString(),
                                         fontWeight = FontWeight.Black,
                                         fontSize = 18.sp
                                     )
@@ -356,7 +368,7 @@ fun RestaurantModuleScreen(
                                 Column(modifier = Modifier.padding(12.dp)) {
                                     Text("INGRESOS DÍA", fontSize = 8.sp, fontWeight = FontWeight.Black, color = Color.Gray, letterSpacing = 1.sp)
                                     Text(
-                                        if (isFoodStand) "—" else formatMxn(dailyRevenue),
+                                        formatMxn(if (isFoodStand) foodRevenue else dailyRevenue),
                                         fontWeight = FontWeight.Black,
                                         fontSize = 18.sp
                                     )
@@ -367,28 +379,37 @@ fun RestaurantModuleScreen(
                 }
             }
 
-            // Libro de reservas (solo restaurantes; los puestos despachan por fila)
+            // Comandas (puestos de comida) vs libro de reservas (restaurantes)
             if (isFoodStand) {
                 item {
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(20.dp).fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Fastfood, contentDescription = null, tint = FoodAccent, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Comandas del Día (${foodOrders.size})", fontWeight = FontWeight.Black, fontSize = 13.sp)
+                    }
+                }
+                if (foodOrders.isEmpty()) {
+                    item {
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(Icons.Default.Fastfood, contentDescription = null, tint = FoodAccent, modifier = Modifier.size(28.dp))
-                            Spacer(Modifier.height(8.dp))
-                            Text("Puesto de Comida Rápida", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             Text(
-                                "Las órdenes se sirven de forma directa por fila; no se administran reservas en el stand.",
-                                fontSize = 11.sp,
+                                "Sin pedidos pagados para esta fecha. Aquí aparecerán las comandas en cuanto los clientes paguen.",
+                                modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                                fontSize = 12.sp,
                                 color = Color.Gray,
                                 textAlign = TextAlign.Center
                             )
                         }
+                    }
+                } else {
+                    items(foodOrders) { order ->
+                        FoodOrderCard(
+                            order = order,
+                            onAdvance = { next -> viewModel.updateOrderStatus(order.id, next) }
+                        )
                     }
                 }
             } else {
@@ -689,6 +710,119 @@ private fun MenuItemCard(
                             Icon(Icons.Default.Delete, contentDescription = "Eliminar platillo", tint = FoodSoldOut, modifier = Modifier.size(16.dp))
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+// Comanda de puesto de comida: productos, tipo de entrega y avance de estado
+@Composable
+private fun FoodOrderCard(
+    order: BookingFirestore,
+    onAdvance: (String) -> Unit
+) {
+    val isDelivery = order.fulfillmentType == "DELIVERY"
+    val status = order.orderStatus.ifEmpty { "PREPARING" }
+    val (statusLabel, statusColor, statusBg) = when (status) {
+        "READY" -> Triple("LISTO", FoodAccent, FoodAvailableBg)
+        "DELIVERED" -> Triple("ENTREGADO", Color.Gray, Color(0xFFEDEDED))
+        else -> Triple("EN PREPARACIÓN", FoodSpecial, FoodSpecialBg)
+    }
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, Color(0xFFE9ECEF)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        order.travelerName.ifEmpty { order.travelerEmail },
+                        fontWeight = FontWeight.Black,
+                        fontSize = 13.sp,
+                        maxLines = 1
+                    )
+                    if (order.confirmationCode.isNotEmpty()) {
+                        Text(order.confirmationCode, fontSize = 10.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Surface(color = statusBg, shape = RoundedCornerShape(8.dp)) {
+                    Text(
+                        statusLabel,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Black,
+                        color = statusColor
+                    )
+                }
+            }
+
+            // Productos del pedido
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                order.orderItems.forEach { item ->
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("${item.quantity}× ${item.name}", fontSize = 12.sp)
+                        Text(formatMxn(item.unitPrice * item.quantity), fontSize = 12.sp, color = Color.Gray)
+                    }
+                }
+            }
+
+            // Entrega + total
+            Surface(
+                color = if (isDelivery) FoodSpecialBg else FoodAvailableBg,
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        if (isDelivery) Icons.Default.DeliveryDining else Icons.Default.Storefront,
+                        contentDescription = null,
+                        tint = if (isDelivery) FoodSpecial else FoodAccent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            if (isDelivery) "Entrega a domicilio" else "Recoge en el local",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (isDelivery && order.deliveryAddress.isNotEmpty()) {
+                            Text(order.deliveryAddress, fontSize = 10.sp, color = Color.Gray, maxLines = 2)
+                        }
+                        if (order.deliveryFee > 0) {
+                            Text("Envío: ${formatMxn(order.deliveryFee)}", fontSize = 10.sp, color = Color.Gray)
+                        }
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Total ${formatMxn(order.totalPrice)}", fontWeight = FontWeight.Black, fontSize = 14.sp, color = FoodAccent)
+                when (status) {
+                    "PREPARING" -> Button(
+                        onClick = { onAdvance("READY") },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = FoodAccent),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                    ) { Text("Marcar listo", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                    "READY" -> Button(
+                        onClick = { onAdvance("DELIVERED") },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = FoodSpecial),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                    ) { Text(if (isDelivery) "Marcar entregado" else "Marcar recogido", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                    else -> Icon(Icons.Default.CheckCircle, contentDescription = null, tint = FoodAccent, modifier = Modifier.size(22.dp))
                 }
             }
         }

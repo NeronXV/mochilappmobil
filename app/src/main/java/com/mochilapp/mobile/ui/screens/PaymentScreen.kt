@@ -97,7 +97,22 @@ fun PaymentScreen(
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Resumen de tu aventura", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
                         Text(b.serviceName.ifEmpty { "Experiencia Mochilapp" }, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        if (b.checkOutDate.isNotEmpty()) {
+                        if (b.orderItems.isNotEmpty()) {
+                            // Pedido de puesto de comida: productos + tipo de entrega
+                            b.orderItems.forEach { item ->
+                                Text("${item.quantity}× ${item.name}", fontSize = 14.sp)
+                            }
+                            val isDelivery = b.fulfillmentType == "DELIVERY"
+                            Text(
+                                if (isDelivery) "Entrega a domicilio" else "Recoger en el local",
+                                fontSize = 13.sp,
+                                color = Color.Gray
+                            )
+                            if (isDelivery && b.deliveryAddress.isNotEmpty()) {
+                                Text(b.deliveryAddress, fontSize = 12.sp, color = Color.Gray)
+                            }
+                            if (b.deliveryFee > 0) Text("Envío: ${formatMxn(b.deliveryFee)}", fontSize = 12.sp, color = Color.Gray)
+                        } else if (b.checkOutDate.isNotEmpty()) {
                             Text("${b.date} → ${b.checkOutDate} • ${b.slots} huéspedes", fontSize = 14.sp)
                         } else {
                             Text("${b.date} • ${b.slots} personas", fontSize = 14.sp)

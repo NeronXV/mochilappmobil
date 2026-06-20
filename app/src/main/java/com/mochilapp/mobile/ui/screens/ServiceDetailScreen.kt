@@ -37,7 +37,9 @@ fun ServiceDetailScreen(
     onBack: () -> Unit,
     userName: String = "",
     isSaved: Boolean = false,
-    onToggleSave: () -> Unit = {}
+    onToggleSave: () -> Unit = {},
+    // Puesto de comida: en vez de reservar fecha/personas se ordena por carrito
+    onOrderClick: (String) -> Unit = onBookClick
 ) {
     var service by remember { mutableStateOf<ServiceFirestore?>(null) }
     var ownerContact by remember { mutableStateOf<UserFirestore?>(null) }
@@ -74,8 +76,12 @@ fun ServiceDetailScreen(
                             .navigationBarsPadding(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        val isFoodStand = s.type == "FOOD_STAND"
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(t("total_price"), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                            Text(
+                                if (isFoodStand) "Desde" else t("total_price"),
+                                style = MaterialTheme.typography.labelSmall, color = Color.Gray
+                            )
                             Text(
                                 formatMxn(s.price),
                                 style = MaterialTheme.typography.headlineSmall.copy(
@@ -85,14 +91,14 @@ fun ServiceDetailScreen(
                             )
                         }
                         Button(
-                            onClick = { onBookClick(s.id) },
+                            onClick = { if (isFoodStand) onOrderClick(s.id) else onBookClick(s.id) },
                             modifier = Modifier
                                 .height(56.dp)
                                 .weight(1.2f),
                             shape = RoundedCornerShape(16.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                         ) {
-                            Text(t("book_now"), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(if (isFoodStand) "Ordenar" else t("book_now"), fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         }
                     }
                 }
