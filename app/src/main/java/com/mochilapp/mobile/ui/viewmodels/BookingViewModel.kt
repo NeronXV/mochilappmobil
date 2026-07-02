@@ -35,6 +35,15 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
         else repository.getBookingsByServiceAndDate(id, date)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Todas las reservas activas del servicio consultado: hospedaje las cruza por
+    // rango de noches para calcular disponibilidad real y evitar sobreventa.
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val serviceBookings: StateFlow<List<BookingFirestore>> = _currentServiceId
+        .flatMapLatest { id ->
+            if (id.isEmpty()) flowOf(emptyList())
+            else repository.getActiveBookingsForService(id)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val myBookings: StateFlow<List<BookingFirestore>> = repository.getBookingsForUser(effectiveEmail)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 

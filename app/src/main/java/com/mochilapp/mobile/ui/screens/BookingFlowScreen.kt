@@ -75,6 +75,30 @@ fun BookingFlowScreen(
 
     var selectedTime by remember { mutableStateOf<String?>(null) }
     val bookingsByDate by bookingViewModel.currentBookings.collectAsState()
+    val serviceBookings by bookingViewModel.serviceBookings.collectAsState()
+
+    // Disponibilidad real para evitar sobreventa. capacity ya es el aforo total
+    // (en hospedaje = camas configuradas). Si no hay aforo definido (0), no se bloquea.
+    val capacity = service?.capacity ?: 0
+    val usedSlots = when {
+        service == null -> 0
+        // Hospedaje: suma las plazas de reservas cuyo rango de noches solapa el solicitado
+        isLodging -> if (dateSelected) serviceBookings.sumOf { b ->
+            val bIn = b.date
+            val bOut = b.checkOutDate
+            val overlaps = if (bOut.isNotEmpty()) bIn < checkOutText && checkInText < bOut
+                           else bIn < checkOutText && checkInText <= bIn // legado sin salida: ocupa su noche
+            if (overlaps) b.slots else 0
+        } else 0
+        // Resto: reservas de la misma fecha (y horario si aplica)
+        checkInMillis != null -> bookingsByDate
+            .filter { if (service?.departureTimes?.isNotEmpty() == true) it.departureTime == selectedTime else true }
+            .sumOf { it.slots }
+        else -> 0
+    }
+    val remainingSlots = capacity - usedSlots
+    // Solo bloquea cuando hay aforo definido, fechas elegidas y no alcanza
+    val capacityBlocks = capacity > 0 && dateSelected && remainingSlots < slots
 
     val bookingResult by bookingViewModel.bookingResult.collectAsState()
     val bookingError by bookingViewModel.bookingError.collectAsState()
@@ -261,24 +285,23 @@ fun BookingFlowScreen(
                         }
                     }
 
-                    // Availability Info
-                    service?.let { s ->
-                        if (!isLodging && s.capacity > 0 && checkInMillis != null) {
-                            val usedSlots = bookingsByDate
-                                .filter { if (s.departureTimes.isNotEmpty()) it.departureTime == selectedTime else true }
-                                .sumOf { it.slots }
-                            val available = s.capacity - usedSlots
-                            
-                            HorizontalDivider(color = Color(0xFFF1F3F5))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Info, contentDescription = null, tint = if (available >= slots) Color(0xFF2ECC71) else Color.Red, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    text = if (available >= slots) "Cupos disponibles: $available" else "Sin cupos suficientes ($available disponibles)",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = if (available >= slots) Color.Gray else Color.Red
-                                )
-                            }
+                    // Availability Info (hospedaje y resto): se muestra cuando hay
+                    // aforo definido y fechas elegidas. En hospedaje refleja las
+                    // plazas libres en el rango de noches solicitado.
+                    if (capacity > 0 && dateSelected) {
+                        val available = remainingSlots.coerceAtLeast(0)
+                        val enough = remainingSlots >= slots
+                        val unitWord = if (isLodging) "plazas" else "cupos"
+                        HorizontalDivider(color = Color(0xFFF1F3F5))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Info, contentDescription = null, tint = if (enough) Color(0xFF2ECC71) else Color.Red, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = if (enough) "${unitWord.replaceFirstChar { it.uppercase() }} disponibles: $available"
+                                       else "Sin $unitWord suficientes ($available disponibles)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (enough) Color.Gray else Color.Red
+                            )
                         }
                     }
                 }
@@ -351,7 +374,8 @@ fun BookingFlowScreen(
                         },
                         enabled = dateSelected &&
                                  service != null &&
-                                 (service?.departureTimes?.isEmpty() == true || selectedTime != null),
+                                 (service?.departureTimes?.isEmpty() == true || selectedTime != null) &&
+                                 !capacityBlocks,
                         modifier = Modifier.height(56.dp).padding(start = 16.dp),
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)

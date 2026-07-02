@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.mochilapp.mobile.data.BookingFirestore
 import com.mochilapp.mobile.data.CompanyType
 import com.mochilapp.mobile.data.PromoFirestore
+import com.mochilapp.mobile.data.RoomFirestore
 import com.mochilapp.mobile.data.ServiceFirestore
 import com.mochilapp.mobile.data.StoryFirestore
 import com.mochilapp.mobile.repository.FirebaseRepository
@@ -26,6 +27,8 @@ data class ServiceDraft(
     val meetingPoint: String = "",
     val checkIn: String = "",
     val checkOut: String = "",
+    // Hospedaje: lista de habitaciones/camas configuradas (alimenta la distribución de planta)
+    val rooms: List<RoomFirestore> = emptyList(),
     val amenities: String = "",
     val rules: String = "",
     val routeName: String = "",
@@ -210,6 +213,7 @@ class CompanyViewModel(
             meetingPoint = service.meetingPoint,
             checkIn = service.checkIn,
             checkOut = service.checkOut,
+            rooms = service.rooms,
             amenities = service.amenities.joinToString(", "),
             rules = service.rules.joinToString(", "),
             routeName = service.routeName,

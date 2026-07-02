@@ -41,7 +41,8 @@ private enum class RoomState { OCCUPIED, PENDING, AVAILABLE, CLEANING, MAINTENAN
 private data class RoomUi(
     val name: String,
     val type: String,
-    val state: RoomState
+    val state: RoomState,
+    val beds: Int = 0
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -400,7 +401,8 @@ private fun RoomGridCard(
                     "CLEANING" -> RoomState.CLEANING
                     "MAINTENANCE" -> RoomState.MAINTENANCE
                     else -> RoomState.AVAILABLE
-                }
+                },
+                beds = room.capacity
             )
         }
     } else {
@@ -430,10 +432,26 @@ private fun RoomGridCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.GridView, contentDescription = null, tint = LodgingAccent, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Distribución de Planta", fontWeight = FontWeight.Black, fontSize = 13.sp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.GridView, contentDescription = null, tint = LodgingAccent, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Distribución de Planta", fontWeight = FontWeight.Black, fontSize = 13.sp)
+                }
+                // Plazas totales: solo en hotel/renta, donde cada habitación tiene camas
+                val totalBeds = rooms.sumOf { it.capacity }
+                if (isHotel && totalBeds > 0) {
+                    Text(
+                        "$totalBeds camas",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Gray
+                    )
+                }
             }
 
             finalRooms.chunked(2).forEach { rowRooms ->
@@ -508,7 +526,11 @@ private fun RoomCard(room: RoomUi, isHotel: Boolean, modifier: Modifier = Modifi
             }
             Column {
                 Text(room.name, fontWeight = FontWeight.Black, fontSize = 13.sp, maxLines = 1)
-                Text(room.type, fontSize = 10.sp, color = Color.Gray, maxLines = 1)
+                val subtitle = if (isHotel && room.beds > 0)
+                    "${room.type} · ${room.beds} ${if (room.beds == 1) "cama" else "camas"}"
+                else
+                    room.type
+                Text(subtitle, fontSize = 10.sp, color = Color.Gray, maxLines = 1)
             }
         }
     }

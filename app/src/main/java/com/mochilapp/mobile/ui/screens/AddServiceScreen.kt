@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.mochilapp.mobile.data.CompanyType
+import com.mochilapp.mobile.data.RoomFirestore
 import com.mochilapp.mobile.data.ServiceFirestore
 import com.mochilapp.mobile.ui.viewmodels.CompanyViewModel
 
@@ -214,8 +215,9 @@ fun AddServiceScreen(
                                 color = Color.Gray
                             )
 
-                            // Capacity (Common for many)
-                            if (draft.type in listOf(CompanyType.BOAT_TOUR, CompanyType.TOUR_AGENCY, CompanyType.TRANSPORT, CompanyType.HOTEL, CompanyType.HOSTEL, CompanyType.PROPERTY_RENTAL)) {
+                            // Capacity (transporte/tours). En hospedaje la capacidad se
+                            // deriva de las habitaciones/camas configuradas más abajo.
+                            if (draft.type in listOf(CompanyType.BOAT_TOUR, CompanyType.TOUR_AGENCY, CompanyType.TRANSPORT)) {
                                 OutlinedTextField(
                                     value = draft.capacity,
                                     onValueChange = { if (it.all { char -> char.isDigit() }) viewModel.updateServiceDraft(draft.copy(capacity = it)) },
@@ -282,6 +284,13 @@ fun AddServiceScreen(
                                     label = { Text("Reglas (ej: No mascotas)") },
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(12.dp)
+                                )
+
+                                // Editor de habitaciones/camas: alimenta la distribución de planta del panel
+                                LodgingRoomsEditor(
+                                    rooms = draft.rooms,
+                                    isHostel = draft.type == CompanyType.HOSTEL,
+                                    onRoomsChange = { viewModel.updateServiceDraft(draft.copy(rooms = it)) }
                                 )
                             }
 
@@ -462,6 +471,13 @@ fun AddServiceScreen(
             ) {
                 Button(
                     onClick = {
+                        val isLodging = draft.type in listOf(CompanyType.HOTEL, CompanyType.HOSTEL, CompanyType.PROPERTY_RENTAL)
+                        // En hospedaje la capacidad (aforo de personas) la mandan las
+                        // camas configuradas; en el resto, el campo "Capacidad máxima".
+                        val resolvedCapacity = if (isLodging)
+                            draft.rooms.sumOf { it.capacity.coerceAtLeast(0) }
+                        else
+                            draft.capacity.toIntOrNull() ?: 0
                         val service = ServiceFirestore(
                             name = draft.name,
                             description = draft.description,
@@ -469,11 +485,12 @@ fun AddServiceScreen(
                             type = draft.type.name,
                             location = draft.location,
                             imageUrl = draft.existingImageUrl,
-                            capacity = draft.capacity.toIntOrNull() ?: 0,
+                            capacity = resolvedCapacity,
                             departureTimes = draft.departureTimes.split(",").map { it.trim() }.filter { it.isNotEmpty() },
                             meetingPoint = draft.meetingPoint,
                             checkIn = draft.checkIn,
                             checkOut = draft.checkOut,
+                            rooms = draft.rooms,
                             amenities = draft.amenities.split(",").map { it.trim() }.filter { it.isNotEmpty() },
                             rules = draft.rules.split(",").map { it.trim() }.filter { it.isNotEmpty() },
                             routeName = draft.routeName,
@@ -517,6 +534,109 @@ fun AddServiceScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+// Editor de habitaciones (hotel/renta) o camas (hostal) para hospedaje.
+// Cada unidad guarda nombre y número de camas; la lista define la distribución
+// de planta y el total de unidades que ve el negocio en su panel.
+@Composable
+private fun LodgingRoomsEditor(
+    rooms: List<RoomFirestore>,
+    isHostel: Boolean,
+    onRoomsChange: (List<RoomFirestore>) -> Unit
+) {
+    // En hostal cada unidad ES una cama (1 plaza): no tiene sentido un sub-campo
+    // "Camas". En hotel/renta la unidad es una habitación con N camas.
+    val unitLabel = if (isHostel) "Cama" else "Habitación"
+    val totalBeds = rooms.sumOf { it.capacity.coerceAtLeast(0) }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.MeetingRoom, contentDescription = null, tint = Color(0xFF106154), modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("${unitLabel}s (${rooms.size})", fontWeight = FontWeight.Bold, color = Color(0xFF106154))
+        }
+        Text(
+            text = if (isHostel)
+                "Agrega cada cama disponible. El total define las unidades y la distribución de planta de tu panel."
+            else
+                "Agrega cada habitación y cuántas camas tiene. Esto define las unidades, las plazas totales y la distribución de planta de tu panel.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.Gray
+        )
+
+        rooms.forEachIndexed { index, room ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = room.name,
+                    onValueChange = { newName ->
+                        onRoomsChange(rooms.toMutableList().also { it[index] = room.copy(name = newName) })
+                    },
+                    label = { Text("$unitLabel ${index + 1}") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1.6f),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                // Solo hotel/renta lleva número de camas por habitación
+                if (!isHostel) {
+                    OutlinedTextField(
+                        value = if (room.capacity > 0) room.capacity.toString() else "",
+                        onValueChange = { v ->
+                            if (v.all { c -> c.isDigit() }) {
+                                onRoomsChange(rooms.toMutableList().also { it[index] = room.copy(capacity = v.toIntOrNull() ?: 0) })
+                            }
+                        },
+                        label = { Text("Camas") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+                IconButton(onClick = {
+                    onRoomsChange(rooms.toMutableList().also { it.removeAt(index) })
+                }) {
+                    Icon(Icons.Default.Delete, contentDescription = "Eliminar $unitLabel", tint = Color(0xFFD32F2F))
+                }
+            }
+        }
+
+        // Resumen de aforo: para hotel/renta se ven plazas totales; en hostal el
+        // total de camas coincide con el número de unidades.
+        if (rooms.isNotEmpty()) {
+            Text(
+                text = if (isHostel)
+                    "Total: ${rooms.size} camas"
+                else
+                    "Total: ${rooms.size} habitaciones · $totalBeds camas",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF106154)
+            )
+        }
+
+        OutlinedButton(
+            onClick = {
+                onRoomsChange(
+                    rooms + RoomFirestore(
+                        id = java.util.UUID.randomUUID().toString(),
+                        name = "$unitLabel ${rooms.size + 1}",
+                        type = unitLabel,
+                        capacity = 1
+                    )
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Agregar $unitLabel")
         }
     }
 }

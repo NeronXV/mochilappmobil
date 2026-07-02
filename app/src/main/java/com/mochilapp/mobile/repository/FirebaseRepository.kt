@@ -258,6 +258,7 @@ class FirebaseRepository {
                 "meetingPoint" to service.meetingPoint,
                 "checkIn" to service.checkIn,
                 "checkOut" to service.checkOut,
+                "rooms" to service.rooms,
                 "amenities" to service.amenities,
                 "rules" to service.rules,
                 "routeName" to service.routeName,
@@ -364,6 +365,18 @@ class FirebaseRepository {
         val subscription = firestore.collection("bookings")
             .whereEqualTo("serviceId", serviceId)
             .whereEqualTo("date", date)
+            .whereNotEqualTo("status", "CANCELLED")
+            .addSnapshotListener { snapshot, _ ->
+                if (snapshot != null) trySend(snapshot.toObjects(BookingFirestore::class.java))
+            }
+        awaitClose { subscription.remove() }
+    }
+
+    // Todas las reservas activas de un servicio (sin filtrar por fecha): hospedaje
+    // necesita el conjunto completo para detectar solapamientos por rango de noches.
+    fun getActiveBookingsForService(serviceId: String): Flow<List<BookingFirestore>> = callbackFlow {
+        val subscription = firestore.collection("bookings")
+            .whereEqualTo("serviceId", serviceId)
             .whereNotEqualTo("status", "CANCELLED")
             .addSnapshotListener { snapshot, _ ->
                 if (snapshot != null) trySend(snapshot.toObjects(BookingFirestore::class.java))
