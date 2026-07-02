@@ -376,7 +376,13 @@ class FirebaseRepository {
             .whereEqualTo("serviceId", serviceId)
             .whereEqualTo("date", date)
             .whereNotEqualTo("status", "CANCELLED")
-            .addSnapshotListener { snapshot, _ ->
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    // Si falta el índice compuesto, la disponibilidad quedaría
+                    // vacía en silencio → riesgo de sobreventa. Dejarlo visible.
+                    Log.e(TAG, "Error consultando disponibilidad de '$serviceId' ($date)", error)
+                    return@addSnapshotListener
+                }
                 if (snapshot != null) trySend(snapshot.toObjects(BookingFirestore::class.java))
             }
         awaitClose { subscription.remove() }
@@ -388,7 +394,11 @@ class FirebaseRepository {
         val subscription = firestore.collection("bookings")
             .whereEqualTo("serviceId", serviceId)
             .whereNotEqualTo("status", "CANCELLED")
-            .addSnapshotListener { snapshot, _ ->
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e(TAG, "Error escuchando reservas activas de '$serviceId'", error)
+                    return@addSnapshotListener
+                }
                 if (snapshot != null) trySend(snapshot.toObjects(BookingFirestore::class.java))
             }
         awaitClose { subscription.remove() }

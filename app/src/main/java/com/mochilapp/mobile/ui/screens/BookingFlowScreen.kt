@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mochilapp.mobile.data.ServiceFirestore
+import com.mochilapp.mobile.data.holdsSeats
 import com.mochilapp.mobile.ui.theme.t
 import com.mochilapp.mobile.ui.viewmodels.BookingViewModel
 import com.mochilapp.mobile.ui.viewmodels.MarketplaceViewModel
@@ -80,10 +81,12 @@ fun BookingFlowScreen(
     // Disponibilidad real para evitar sobreventa. capacity ya es el aforo total
     // (en hospedaje = camas configuradas). Si no hay aforo definido (0), no se bloquea.
     val capacity = service?.capacity ?: 0
+    // Solo cuentan las reservas que retienen cupo: las PENDING abandonadas
+    // liberan su lugar al expirar el hold (holdsSeats)
     val usedSlots = when {
         service == null -> 0
         // Hospedaje: suma las plazas de reservas cuyo rango de noches solapa el solicitado
-        isLodging -> if (dateSelected) serviceBookings.sumOf { b ->
+        isLodging -> if (dateSelected) serviceBookings.filter { it.holdsSeats() }.sumOf { b ->
             val bIn = b.date
             val bOut = b.checkOutDate
             val overlaps = if (bOut.isNotEmpty()) bIn < checkOutText && checkInText < bOut
@@ -92,6 +95,7 @@ fun BookingFlowScreen(
         } else 0
         // Resto: reservas de la misma fecha (y horario si aplica)
         checkInMillis != null -> bookingsByDate
+            .filter { it.holdsSeats() }
             .filter { if (service?.departureTimes?.isNotEmpty() == true) it.departureTime == selectedTime else true }
             .sumOf { it.slots }
         else -> 0
@@ -201,8 +205,11 @@ fun BookingFlowScreen(
                                 Icon(Icons.Default.RemoveCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             }
                             Text(slots.toString(), fontWeight = FontWeight.Black, fontSize = 20.sp, modifier = Modifier.padding(horizontal = 8.dp))
-                            IconButton(onClick = { slots++ }) {
-                                Icon(Icons.Default.AddCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            // Con aforo definido y fecha elegida, no dejar pedir más
+                            // lugares de los que quedan
+                            val canAddMore = capacity <= 0 || !dateSelected || slots < remainingSlots
+                            IconButton(onClick = { if (canAddMore) slots++ }, enabled = canAddMore) {
+                                Icon(Icons.Default.AddCircle, contentDescription = null, tint = if (canAddMore) MaterialTheme.colorScheme.primary else Color.LightGray)
                             }
                         }
                     }
@@ -264,16 +271,40 @@ fun BookingFlowScreen(
                             Column {
                                 Text("Horario de salida", fontWeight = FontWeight.Bold)
                                 Spacer(Modifier.height(12.dp))
-                                Row(
+                                @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                                androidx.compose.foundation.layout.FlowRow(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     s.departureTimes.forEach { time ->
                                         val isSelected = selectedTime == time
+                                        // Cupos restantes de ESTE horario (estilo GetYourGuide)
+                                        val timeUsed = if (dateSelected) bookingsByDate
+                                            .filter { it.holdsSeats() && it.departureTime == time }
+                                            .sumOf { it.slots } else 0
+                                        val timeRemaining = s.capacity - timeUsed
+                                        val showAvailability = s.capacity > 0 && dateSelected
+                                        val isFull = showAvailability && timeRemaining <= 0
                                         FilterChip(
                                             selected = isSelected,
+                                            enabled = !isFull,
                                             onClick = { selectedTime = time },
-                                            label = { Text(time) },
+                                            label = {
+                                                Column(
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    modifier = Modifier.padding(vertical = 4.dp)
+                                                ) {
+                                                    Text(time, fontWeight = FontWeight.Bold)
+                                                    if (showAvailability) {
+                                                        Text(
+                                                            if (isFull) "Lleno"
+                                                            else if (timeRemaining == 1) "Queda 1"
+                                                            else "Quedan $timeRemaining",
+                                                            fontSize = 10.sp
+                                                        )
+                                                    }
+                                                }
+                                            },
                                             colors = FilterChipDefaults.filterChipColors(
                                                 selectedContainerColor = MaterialTheme.colorScheme.primary,
                                                 selectedLabelColor = Color.White

@@ -106,6 +106,9 @@ data class OrderItemFirestore(
 
 data class BookingFirestore(
     @DocumentId val id: String = "",
+    // Momento de creación: el hold de reservas PENDING sin pagar expira a los
+    // 30 min (estilo Booking) para no bloquear cupos con carritos abandonados
+    val createdAt: Long = 0L,
     val serviceId: String = "",
     val travelerEmail: String = "",
     val travelerName: String = "",
@@ -140,6 +143,18 @@ data class BookingFirestore(
     val deliveryFee: Double = 0.0,
     val orderStatus: String = ""           // "PREPARING" | "READY" | "DELIVERED"
 )
+
+// Ventana del hold: cuánto retiene cupo una reserva PENDING sin pagar
+const val PENDING_HOLD_MILLIS: Long = 30L * 60 * 1000
+
+// ¿Esta reserva sigue ocupando cupo? Pagadas/check-in sí; canceladas no;
+// PENDING solo dentro de la ventana del hold (las legado sin createdAt
+// conservan el comportamiento anterior y siguen contando).
+fun BookingFirestore.holdsSeats(now: Long = System.currentTimeMillis()): Boolean {
+    if (status == "CANCELLED") return false
+    if (status != "PENDING") return true
+    return createdAt <= 0L || now - createdAt < PENDING_HOLD_MILLIS
+}
 
 data class PostFirestore(
     @DocumentId val id: String = "",

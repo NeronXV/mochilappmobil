@@ -270,6 +270,38 @@ exports.dailyTripReminders = functions.pubsub
     });
 
 /**
+ * Scheduled (every 30 min): release seats held by unpaid PENDING bookings
+ * older than the hold window. Mirrors PENDING_HOLD_MILLIS in the app
+ * (FirebaseModels.kt) — keep both in sync.
+ * Requires a composite index on bookings (status ASC, createdAt ASC); the
+ * first run logs a direct link to create it if missing.
+ */
+exports.expireStalePendingBookings = functions.pubsub
+    .schedule("every 30 minutes")
+    .timeZone("America/Mazatlan")
+    .onRun(async () => {
+      const HOLD_MILLIS = 30 * 60 * 1000;
+      const cutoff = Date.now() - HOLD_MILLIS;
+      const db = admin.firestore();
+      const snap = await db.collection("bookings")
+          .where("status", "==", "PENDING")
+          .where("createdAt", ">", 0)
+          .where("createdAt", "<", cutoff)
+          .get();
+      if (snap.empty) return null;
+
+      const batch = db.batch();
+      snap.docs.forEach((doc) => {
+        batch.update(doc.ref, {
+          status: "CANCELLED",
+          cancelReason: "HOLD_EXPIRED",
+        });
+      });
+      console.log(`Expiradas ${snap.size} reservas PENDING sin pagar.`);
+      return batch.commit();
+    });
+
+/**
  * Firestore trigger: when a review is created, recalculate the service's
  * average rating and review count. Runs with Admin SDK because security
  * rules (correctly) block travelers from writing reputation fields.

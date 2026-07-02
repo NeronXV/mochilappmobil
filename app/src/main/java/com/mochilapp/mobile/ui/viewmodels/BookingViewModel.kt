@@ -93,6 +93,7 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
             val code = generateConfirmationCode()
 
             val booking = BookingFirestore(
+                createdAt = System.currentTimeMillis(),
                 serviceId = serviceId,
                 serviceName = serviceName,
                 travelerEmail = effectiveEmail,
@@ -154,6 +155,7 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
             val fee = if (fulfillmentType == "DELIVERY") deliveryFee else 0.0
 
             val booking = BookingFirestore(
+                createdAt = System.currentTimeMillis(),
                 serviceId = serviceId,
                 serviceName = serviceName,
                 travelerEmail = effectiveEmail,
