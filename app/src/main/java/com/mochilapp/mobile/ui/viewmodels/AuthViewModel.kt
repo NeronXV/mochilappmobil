@@ -53,10 +53,27 @@ class AuthViewModel(private val repository: FirebaseRepository) : ViewModel() {
         viewModelScope.launch {
             val currentUser = auth.currentUser
             if (currentUser != null) {
-                _userProfile.value = repository.getUserProfile(currentUser.uid)
+                _userProfile.value = normalizeProfileEmail(repository.getUserProfile(currentUser.uid))
                 startObservingProfile(currentUser.uid)
             }
             _isCheckingAuth.value = false
+        }
+    }
+
+    // Auth guarda el email en minúsculas, pero el perfil conservaba el que se
+    // tecleó al registrarse (p. ej. "Pdro_..."). Servicios y reservas se escriben
+    // con el de Auth, así que un perfil desalineado dejaba el panel de empresa
+    // vacío y las notificaciones push nunca encontraban al dueño. Se corrige
+    // una sola vez al iniciar sesión.
+    private suspend fun normalizeProfileEmail(profile: UserFirestore?): UserFirestore? {
+        val authEmail = auth.currentUser?.email ?: return profile
+        if (profile == null || profile.email == authEmail) return profile
+        return try {
+            repository.updateUserEmail(profile.uid, authEmail)
+            profile.copy(email = authEmail)
+        } catch (_: Exception) {
+            // Si las reglas lo impiden, seguimos con el perfil tal cual
+            profile
         }
     }
 
@@ -150,7 +167,9 @@ class AuthViewModel(private val repository: FirebaseRepository) : ViewModel() {
                 result.user?.uid?.let { uid ->
                     val profile = UserFirestore(
                         uid = uid,
-                        email = email,
+                        // El email normalizado de Auth (minúsculas), no el tecleado:
+                        // es el que llevan servicios/reservas y el que buscan las functions
+                        email = result.user?.email ?: email.trim().lowercase(),
                         name = name,
                         role = role,
                         companyType = companyType,
@@ -188,7 +207,7 @@ class AuthViewModel(private val repository: FirebaseRepository) : ViewModel() {
             try {
                 val result = auth.signInWithEmailAndPassword(email, pass).await()
                 result.user?.uid?.let { uid ->
-                    val profile = repository.getUserProfile(uid)
+                    val profile = normalizeProfileEmail(repository.getUserProfile(uid))
                     _userProfile.value = profile
                     if (profile != null) {
                         startObservingProfile(uid)

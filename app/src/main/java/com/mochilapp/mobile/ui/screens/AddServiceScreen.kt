@@ -429,9 +429,13 @@ fun AddServiceScreen(
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
+                    // Tours/transporte: el pin del mapa ES el punto de encuentro
+                    // (una ciudad + un pin; los campos extra confundían). El resto
+                    // de giros conserva su dirección escrita.
+                    val usesMeetingPoint = draft.type in meetingPointTypes
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text(
-                            text = "Ubicación del servicio",
+                            text = if (usesMeetingPoint) "Ubicación y punto de encuentro" else "Ubicación del servicio",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = Color(0xFF106154)
                         )
@@ -445,25 +449,14 @@ fun AddServiceScreen(
                             leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color.Red) }
                         )
 
-                        OutlinedTextField(
-                            value = draft.address,
-                            onValueChange = { viewModel.updateServiceDraft(draft.copy(address = it)) },
-                            label = { Text("Dirección o referencia exacta") },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            leadingIcon = { Icon(Icons.Default.Map, contentDescription = null, tint = Color.Gray) }
-                        )
-
-                        // Solo para tours/transporte, donde el punto de salida puede
-                        // diferir de la dirección del negocio
-                        if (draft.type in meetingPointTypes) {
+                        if (!usesMeetingPoint) {
                             OutlinedTextField(
-                                value = draft.meetingPoint,
-                                onValueChange = { viewModel.updateServiceDraft(draft.copy(meetingPoint = it)) },
-                                label = { Text("Punto de encuentro / salida (Opcional)") },
+                                value = draft.address,
+                                onValueChange = { viewModel.updateServiceDraft(draft.copy(address = it)) },
+                                label = { Text("Dirección o referencia exacta") },
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
-                                leadingIcon = { Icon(Icons.Default.Place, contentDescription = null, tint = Color.Gray) }
+                                leadingIcon = { Icon(Icons.Default.Map, contentDescription = null, tint = Color.Gray) }
                             )
                         }
 
@@ -499,7 +492,11 @@ fun AddServiceScreen(
                             TextButton(onClick = onMapClick, modifier = Modifier.align(Alignment.End)) {
                                 Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text("Ajustar pin en el mapa", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text(
+                                    if (usesMeetingPoint) "Ajustar punto de encuentro" else "Ajustar pin en el mapa",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         } else {
                             Button(
@@ -511,12 +508,18 @@ fun AddServiceScreen(
                                     contentColor = Color.Black
                                 )
                             ) {
-                                Icon(Icons.Default.Map, contentDescription = null)
+                                Icon(if (usesMeetingPoint) Icons.Default.Place else Icons.Default.Map, contentDescription = null)
                                 Spacer(Modifier.width(12.dp))
-                                Text("Seleccionar en mapa", fontWeight = FontWeight.Bold)
+                                Text(
+                                    if (usesMeetingPoint) "Marcar punto de encuentro en el mapa" else "Seleccionar en mapa",
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                             Text(
-                                "Marca el punto exacto: así apareces en el mapa turístico del viajero",
+                                if (usesMeetingPoint)
+                                    "El pin le muestra al viajero dónde inicia el tour (muelle, kiosco, playa...)"
+                                else
+                                    "Marca el punto exacto: así apareces en el mapa turístico del viajero",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color.Gray,
                                 modifier = Modifier.padding(start = 4.dp)

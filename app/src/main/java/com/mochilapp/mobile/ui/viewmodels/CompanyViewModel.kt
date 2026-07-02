@@ -50,10 +50,15 @@ data class ServiceDraft(
 )
 
 class CompanyViewModel(
-    private val repository: FirebaseRepository, 
+    private val repository: FirebaseRepository,
     private val ownerEmail: String,
     private val ownerUid: String
 ) : ViewModel() {
+    // Email de la sesión de Auth (siempre en minúsculas): es con el que se
+    // escriben servicios y reservas. El del perfil puede diferir en mayúsculas
+    // y dejaba el panel vacío aunque el marketplace sí mostrara los servicios.
+    private val queryEmail: String = repository.getCurrentUserEmail() ?: ownerEmail
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
@@ -98,13 +103,13 @@ class CompanyViewModel(
 
     // Incluye servicios ocultos para que la empresa pueda gestionarlos;
     // el marketplace del viajero ya filtra por isVisible por su cuenta
-    val myServices: StateFlow<List<ServiceFirestore>> = repository.getServicesByOwner(ownerEmail)
+    val myServices: StateFlow<List<ServiceFirestore>> = repository.getServicesByOwner(queryEmail)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val myBookings: StateFlow<List<BookingFirestore>> = repository.getBookingsForOwner(ownerEmail)
+    val myBookings: StateFlow<List<BookingFirestore>> = repository.getBookingsForOwner(queryEmail)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val myPromos: StateFlow<List<PromoFirestore>> = repository.getPromosByOwner(ownerEmail)
+    val myPromos: StateFlow<List<PromoFirestore>> = repository.getPromosByOwner(queryEmail)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val activePromosCount: StateFlow<Int> = myPromos.map { list ->
@@ -172,10 +177,10 @@ class CompanyViewModel(
             try {
                 repository.addService(
                     service.copy(
-                        ownerEmail = ownerEmail,
+                        ownerEmail = queryEmail,
                         ownerUid = ownerUid,
                         isVisible = true
-                    ), 
+                    ),
                     imageUri
                 )
                 onComplete()
@@ -267,7 +272,7 @@ class CompanyViewModel(
 
     // --- Avisos operativos para viajeros ---
     val myNotices: StateFlow<List<com.mochilapp.mobile.data.NoticeFirestore>> =
-        repository.getNoticesByOwner(ownerEmail)
+        repository.getNoticesByOwner(queryEmail)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun sendNotice(
@@ -282,7 +287,7 @@ class CompanyViewModel(
             try {
                 repository.addNotice(
                     com.mochilapp.mobile.data.NoticeFirestore(
-                        ownerEmail = ownerEmail,
+                        ownerEmail = queryEmail,
                         companyName = companyName,
                         serviceId = serviceId,
                         serviceName = serviceName,
@@ -342,7 +347,7 @@ class CompanyViewModel(
             val now = System.currentTimeMillis()
             val promo = PromoFirestore(
                 serviceId = serviceId,
-                ownerEmail = ownerEmail,
+                ownerEmail = queryEmail,
                 companyName = companyName,
                 content = content,
                 discount = discount,
@@ -363,7 +368,7 @@ class CompanyViewModel(
             try {
                 val now = System.currentTimeMillis()
                 val story = StoryFirestore(
-                    ownerEmail = ownerEmail,
+                    ownerEmail = queryEmail,
                     companyName = companyName,
                     caption = caption,
                     timestamp = now,

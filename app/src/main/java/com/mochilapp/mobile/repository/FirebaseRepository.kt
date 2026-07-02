@@ -72,6 +72,17 @@ class FirebaseRepository {
         awaitClose { subscription.remove() }
     }
 
+    // Alinea el email del doc del usuario con el de la sesión de Auth (minúsculas).
+    // Las Cloud Functions buscan el doc por ese email para enviar notificaciones.
+    suspend fun updateUserEmail(uid: String, email: String) {
+        try {
+            firestore.collection("users").document(uid).update("email", email).await()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error normalizing user email", e)
+            throw e
+        }
+    }
+
     suspend fun saveUserProfile(user: UserFirestore) {
         try {
             firestore.collection("users").document(user.uid).set(user).await()

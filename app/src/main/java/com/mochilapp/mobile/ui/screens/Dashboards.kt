@@ -1609,7 +1609,12 @@ fun CompanyDashboard(
                                 serviceTypes = setOf("TRANSPORT"),
                                 onClick = onTransportModuleClick
                             )
-                        ).filter { entry -> services.any { it.type in entry.serviceTypes } }
+                        ).filter { entry ->
+                            // Mostrar el módulo si hay servicios del giro O si la
+                            // empresa se registró con ese giro (aunque aún no publique)
+                            services.any { it.type in entry.serviceTypes } ||
+                                (userProfile?.companyType ?: "") in entry.serviceTypes
+                        }
 
                         items(moduleEntries) { entry ->
                             Surface(
