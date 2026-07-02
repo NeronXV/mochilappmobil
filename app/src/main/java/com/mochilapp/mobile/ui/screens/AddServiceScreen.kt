@@ -50,7 +50,8 @@ fun AddServiceScreen(
     // Datos del perfil de la empresa para precargar la ubicación del servicio
     companyLocation: String = "",
     companyLat: Double = 0.0,
-    companyLng: Double = 0.0
+    companyLng: Double = 0.0,
+    companyHours: String = ""
 ) {
     // El borrador vive en el ViewModel: sobrevive la ida y vuelta al mapa
     val draft by viewModel.serviceDraft.collectAsState()
@@ -76,6 +77,10 @@ fun AddServiceScreen(
         if (current.editingServiceId == null) {
             if (current.location.isBlank() && companyLocation.isNotBlank()) {
                 viewModel.updateServiceDraft(current.copy(location = companyLocation))
+            }
+            val afterLocation = viewModel.serviceDraft.value
+            if (afterLocation.businessHours.isBlank() && companyHours.isNotBlank()) {
+                viewModel.updateServiceDraft(afterLocation.copy(businessHours = companyHours))
             }
             if (viewModel.selectedLat.value == 0.0 && viewModel.selectedLng.value == 0.0 &&
                 (companyLat != 0.0 || companyLng != 0.0)
@@ -257,17 +262,28 @@ fun AddServiceScreen(
                                 )
                             }
 
-                            // Departure Times (Tours and Transport)
+                            // Departure Times (Tours and Transport): chips + reloj,
+                            // en vez de texto libre propenso a errores de formato
                             if (draft.type in listOf(CompanyType.BOAT_TOUR, CompanyType.TOUR_AGENCY, CompanyType.TRANSPORT)) {
-                                OutlinedTextField(
-                                    value = draft.departureTimes,
-                                    onValueChange = { viewModel.updateServiceDraft(draft.copy(departureTimes = it)) },
-                                    label = { Text("Horarios (ej: 09:00, 13:00)") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp),
-                                    leadingIcon = { Icon(Icons.Default.AccessTime, contentDescription = null, tint = Color.Gray) }
+                                val departureList = draft.departureTimes
+                                    .split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                                DepartureTimesEditor(
+                                    times = departureList,
+                                    onTimesChange = { newTimes ->
+                                        viewModel.updateServiceDraft(draft.copy(departureTimes = newTimes.joinToString(", ")))
+                                    }
                                 )
                             }
+
+                            // Horario de atención: aplica a todos los giros, no solo restaurantes
+                            OutlinedTextField(
+                                value = draft.businessHours,
+                                onValueChange = { viewModel.updateServiceDraft(draft.copy(businessHours = it)) },
+                                label = { Text("Horario de atención (ej: 09:00 - 18:00)") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                leadingIcon = { Icon(Icons.Default.Schedule, contentDescription = null, tint = Color.Gray) }
+                            )
 
                             // Guide Name (Agency)
                             if (draft.type == CompanyType.TOUR_AGENCY) {
@@ -324,13 +340,6 @@ fun AddServiceScreen(
 
                             // Restaurant Specifics
                             if (draft.type in listOf(CompanyType.RESTAURANT, CompanyType.FOOD_STAND)) {
-                                OutlinedTextField(
-                                    value = draft.businessHours,
-                                    onValueChange = { viewModel.updateServiceDraft(draft.copy(businessHours = it)) },
-                                    label = { Text("Horario (ej: 09:00 - 22:00)") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp)
-                                )
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text("¿Está abierto ahora?", modifier = Modifier.weight(1f))
                                     Switch(checked = draft.isOpen, onCheckedChange = { viewModel.updateServiceDraft(draft.copy(isOpen = it)) })
@@ -592,6 +601,74 @@ fun AddServiceScreen(
                 }
             }
         }
+    }
+}
+
+// Editor de horarios de salida: chips removibles + selector de hora con reloj.
+// Guarda "HH:mm" ordenado, el formato que ya esperan los módulos y reservas.
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun DepartureTimesEditor(
+    times: List<String>,
+    onTimesChange: (List<String>) -> Unit
+) {
+    var showTimePicker by remember { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.AccessTime, contentDescription = null, tint = Color(0xFF106154), modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Horarios de salida", fontWeight = FontWeight.Bold, color = Color(0xFF106154))
+        }
+        if (times.isEmpty()) {
+            Text(
+                "Agrega cada horario en que sale tu servicio. El viajero elegirá uno al reservar.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray
+            )
+        }
+        androidx.compose.foundation.layout.FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            times.forEach { time ->
+                InputChip(
+                    selected = false,
+                    onClick = {},
+                    label = { Text(time, fontWeight = FontWeight.Bold) },
+                    trailingIcon = {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Eliminar $time",
+                            modifier = Modifier.size(16.dp).clickable { onTimesChange(times - time) }
+                        )
+                    }
+                )
+            }
+        }
+        OutlinedButton(onClick = { showTimePicker = true }, shape = RoundedCornerShape(12.dp)) {
+            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("Agregar horario")
+        }
+    }
+
+    if (showTimePicker) {
+        val timeState = rememberTimePickerState(is24Hour = true)
+        AlertDialog(
+            onDismissRequest = { showTimePicker = false },
+            title = { Text("Nuevo horario de salida", fontWeight = FontWeight.Bold) },
+            text = { TimePicker(state = timeState) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val formatted = String.format(java.util.Locale.US, "%02d:%02d", timeState.hour, timeState.minute)
+                    onTimesChange((times + formatted).distinct().sorted())
+                    showTimePicker = false
+                }) { Text("Agregar", fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTimePicker = false }) { Text("Cancelar") }
+            }
+        )
     }
 }
 

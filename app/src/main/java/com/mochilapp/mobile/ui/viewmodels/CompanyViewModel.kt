@@ -194,6 +194,17 @@ class CompanyViewModel(
         }
     }
 
+    // Aforo (lugares) de un servicio, editable desde el módulo de embarcaciones
+    fun updateServiceCapacity(id: String, capacity: Int) {
+        viewModelScope.launch {
+            try {
+                repository.updateServiceCapacity(id, capacity)
+            } catch (_: Exception) {
+                // El listener de myServices refleja el estado real si falla
+            }
+        }
+    }
+
     fun setServiceVisibility(id: String, isVisible: Boolean) {
         viewModelScope.launch {
             repository.updateServiceVisibility(id, isVisible)

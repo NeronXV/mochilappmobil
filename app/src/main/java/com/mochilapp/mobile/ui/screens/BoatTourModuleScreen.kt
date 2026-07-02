@@ -67,7 +67,10 @@ fun BoatTourModuleScreen(
         selectedTime = selectedService?.departureTimes?.firstOrNull() ?: ""
     }
 
-    val capacity = (selectedService?.capacity ?: 0).let { if (it <= 0) 12 else it }
+    // Aforo real del servicio; 0 = sin configurar (se pide configurarlo en
+    // pantalla en vez de asumir 12 lugares en silencio)
+    val capacity = selectedService?.capacity ?: 0
+    var showCapacityDialog by remember { mutableStateOf(false) }
 
     // Misma lógica de filtrado que BoatTourModule.tsx del panel web
     val activeBookings = remember(bookings, selectedServiceId, selectedDate, selectedTime, selectedService) {
@@ -233,18 +236,62 @@ fun BoatTourModuleScreen(
             // KPIs de ocupación
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    BoatKpiCard(Modifier.weight(1f), "CAPACIDAD", capacity.toString(), MaterialTheme.colorScheme.onSurface)
+                    BoatKpiCard(
+                        Modifier.weight(1f), "CAPACIDAD",
+                        if (capacity > 0) capacity.toString() else "--",
+                        MaterialTheme.colorScheme.onSurface,
+                        onEdit = { showCapacityDialog = true }
+                    )
                     BoatKpiCard(Modifier.weight(1f), "PAGADOS", paidSlots.toString(), SeatPaid)
                     BoatKpiCard(Modifier.weight(1f), "APARTADOS", pendingSlots.toString(), Color(0xFFD68910))
                     BoatKpiCard(
-                        Modifier.weight(1f), "LIBRES", availableSlots.toString(),
-                        if (availableSlots < 0) SeatPaid else Color(0xFF059669)
+                        Modifier.weight(1f), "LIBRES",
+                        if (capacity > 0) availableSlots.toString() else "--",
+                        if (capacity > 0 && availableSlots < 0) SeatPaid else Color(0xFF059669)
                     )
                 }
             }
 
+            // Aforo sin configurar: pedirlo explícitamente en vez de inventar lugares
+            if (capacity <= 0) {
+                item {
+                    Surface(
+                        color = Color(0xFFFDEBD0),
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.dp, Color(0xFFF5CBA7)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.AirlineSeatReclineNormal, contentDescription = null, tint = Color(0xFFD68910))
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Configura el aforo de tu embarcación", fontWeight = FontWeight.Black, fontSize = 13.sp, color = Color(0xFF9C640C))
+                                    Text(
+                                        "Define cuántos lugares tiene para controlar cupos y evitar sobreventa.",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFFB9770E)
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            Button(
+                                onClick = { showCapacityDialog = true },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD68910)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Definir lugares", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+
             // Alerta de sobreventa
-            if (availableSlots < 0) {
+            if (capacity > 0 && availableSlots < 0) {
                 item {
                     Surface(
                         color = Color(0xFFFADBD8),
@@ -268,14 +315,16 @@ fun BoatTourModuleScreen(
                 }
             }
 
-            // Mapa de asientos de la embarcación
-            item {
-                BoatSeatMap(
-                    capacity = capacity,
-                    paidSlots = paidSlots,
-                    pendingSlots = pendingSlots,
-                    availableSlots = availableSlots
-                )
+            // Mapa de asientos de la embarcación (solo con aforo configurado)
+            if (capacity > 0) {
+                item {
+                    BoatSeatMap(
+                        capacity = capacity,
+                        paidSlots = paidSlots,
+                        pendingSlots = pendingSlots,
+                        availableSlots = availableSlots
+                    )
+                }
             }
 
             // Manifiesto de pasajeros
@@ -318,6 +367,59 @@ fun BoatTourModuleScreen(
                 }
             }
         }
+    }
+
+    // Diálogo para definir/ajustar los lugares de la embarcación
+    if (showCapacityDialog && selectedService != null) {
+        var capacityInput by remember(selectedService.id) {
+            mutableStateOf(if (capacity > 0) capacity.toString() else "")
+        }
+        AlertDialog(
+            onDismissRequest = { showCapacityDialog = false },
+            title = { Text("Lugares de la embarcación", fontWeight = FontWeight.Black) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "¿Cuántos pasajeros puede llevar \"${selectedService.name}\"?",
+                        fontSize = 13.sp
+                    )
+                    OutlinedTextField(
+                        value = capacityInput,
+                        onValueChange = { v -> if (v.all { it.isDigit() } && v.length <= 3) capacityInput = v },
+                        label = { Text("Número de lugares") },
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (occupiedSlots > 0 && (capacityInput.toIntOrNull() ?: 0) in 1 until occupiedSlots) {
+                        Text(
+                            "Ojo: ya tienes $occupiedSlots lugar(es) reservados en la salida seleccionada.",
+                            fontSize = 11.sp,
+                            color = Color(0xFFC0392B)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        capacityInput.toIntOrNull()?.let { newCapacity ->
+                            if (newCapacity > 0) {
+                                viewModel.updateServiceCapacity(selectedService.id, newCapacity)
+                            }
+                        }
+                        showCapacityDialog = false
+                    },
+                    enabled = (capacityInput.toIntOrNull() ?: 0) > 0
+                ) { Text("Guardar", fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCapacityDialog = false }) { Text("Cancelar") }
+            }
+        )
     }
 
     if (showDatePicker) {
@@ -390,15 +492,27 @@ private fun BoatServiceSelector(
 }
 
 @Composable
-private fun BoatKpiCard(modifier: Modifier, label: String, value: String, valueColor: Color) {
+private fun BoatKpiCard(
+    modifier: Modifier,
+    label: String,
+    value: String,
+    valueColor: Color,
+    onEdit: (() -> Unit)? = null
+) {
     Card(
-        modifier = modifier,
+        modifier = if (onEdit != null) modifier.clickable(onClick = onEdit) else modifier,
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Text(label, fontSize = 8.sp, fontWeight = FontWeight.Black, color = Color.Gray, maxLines = 1)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(label, fontSize = 8.sp, fontWeight = FontWeight.Black, color = Color.Gray, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
+                if (onEdit != null) {
+                    Spacer(Modifier.width(4.dp))
+                    Icon(Icons.Default.Edit, contentDescription = "Ajustar", modifier = Modifier.size(12.dp), tint = Color(0xFF0891B2))
+                }
+            }
             Spacer(Modifier.height(4.dp))
             Text(value, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black), color = valueColor)
         }

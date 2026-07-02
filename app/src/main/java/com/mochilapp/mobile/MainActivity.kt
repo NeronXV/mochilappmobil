@@ -298,7 +298,8 @@ fun MochilappApp(currentLanguage: AppLanguage, onLanguageChange: (AppLanguage) -
                     onBack = { backStack.removeAt(backStack.size - 1) },
                     companyLocation = userProfile?.businessLocation ?: "",
                     companyLat = userProfile?.businessLat ?: 0.0,
-                    companyLng = userProfile?.businessLng ?: 0.0
+                    companyLng = userProfile?.businessLng ?: 0.0,
+                    companyHours = userProfile?.businessHours ?: ""
                 )
             }
             entry<Destination.MapPicker> {

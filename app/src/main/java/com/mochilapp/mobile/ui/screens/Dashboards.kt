@@ -1654,7 +1654,11 @@ fun CompanyDashboard(
                                     modifier = Modifier.weight(1f),
                                     icon = Icons.Default.CalendarMonth,
                                     label = t("company_bookings_today"),
-                                    value = todayCount.toString()
+                                    value = todayCount.toString(),
+                                    onClick = {
+                                        viewModel.setBookingStatusFilter("ALL")
+                                        viewModel.selectTab(2)
+                                    }
                                 )
                                 CompanyStatCard(
                                     modifier = Modifier.weight(1f),
@@ -1662,7 +1666,14 @@ fun CompanyDashboard(
                                     label = t("company_pending_requests"),
                                     value = pendingCount.toString(),
                                     actionLabel = if (pendingCount > 0) "Revisar" else null,
-                                    onActionClick = { viewModel.selectTab(2) }
+                                    onActionClick = {
+                                        viewModel.setBookingStatusFilter("PENDING")
+                                        viewModel.selectTab(2)
+                                    },
+                                    onClick = {
+                                        viewModel.setBookingStatusFilter("PENDING")
+                                        viewModel.selectTab(2)
+                                    }
                                 )
                             }
                         }
@@ -1672,13 +1683,21 @@ fun CompanyDashboard(
                                     modifier = Modifier.weight(1f),
                                     icon = Icons.Default.CreditCard,
                                     label = "Ingresos del Mes",
-                                    value = formatMxn(monthlyRevenue)
+                                    value = formatMxn(monthlyRevenue),
+                                    onClick = {
+                                        viewModel.setBookingStatusFilter("PAID")
+                                        viewModel.selectTab(2)
+                                    }
                                 )
                                 CompanyStatCard(
                                     modifier = Modifier.weight(1f),
                                     icon = Icons.Default.CheckCircle,
                                     label = "Reservas Pagadas",
-                                    value = paidCount.toString()
+                                    value = paidCount.toString(),
+                                    onClick = {
+                                        viewModel.setBookingStatusFilter("PAID")
+                                        viewModel.selectTab(2)
+                                    }
                                 )
                             }
                         }
@@ -1688,7 +1707,8 @@ fun CompanyDashboard(
                                     modifier = Modifier.weight(1f),
                                     icon = Icons.Default.Storefront,
                                     label = "Servicios Activos",
-                                    value = services.count { it.isVisible }.toString()
+                                    value = services.count { it.isVisible }.toString(),
+                                    onClick = { viewModel.selectTab(1) }
                                 )
                                 CompanyStatCard(
                                     modifier = Modifier.weight(1f),
@@ -2181,14 +2201,20 @@ fun CompanyStatCard(
     value: String,
     trend: String? = null,
     actionLabel: String? = null,
-    onActionClick: () -> Unit = {}
+    onActionClick: () -> Unit = {},
+    // Toda la tarjeta navega a su pantalla (estilo KPI clicable de panel web)
+    onClick: (() -> Unit)? = null
 ) {
     Card(
+        onClick = onClick ?: {},
+        enabled = onClick != null,
         modifier = modifier,
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            disabledContainerColor = MaterialTheme.colorScheme.surface,
+            disabledContentColor = MaterialTheme.colorScheme.onSurface
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {

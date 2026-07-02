@@ -293,6 +293,16 @@ class FirebaseRepository {
         }
     }
 
+    // Ajuste rápido de aforo desde los módulos operativos (p. ej. embarcaciones)
+    suspend fun updateServiceCapacity(id: String, capacity: Int) {
+        try {
+            firestore.collection("services").document(id).update("capacity", capacity).await()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating service capacity", e)
+            throw e
+        }
+    }
+
     suspend fun updateServiceVisibility(id: String, isVisible: Boolean) {
         try {
             firestore.collection("services").document(id).update("isVisible", isVisible).await()
