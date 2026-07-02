@@ -28,13 +28,17 @@ fun MapPickerScreen(
     viewModel: CompanyViewModel,
     onBack: () -> Unit
 ) {
-    // Initial position: La Paz, BCS, Mexico
-    val initialLocation = LatLng(24.1422, -110.3127)
+    // Si ya hay coordenadas (edición o precarga del perfil), abrir centrado ahí;
+    // si no, posición inicial: La Paz, BCS, México
+    val savedLat = remember { viewModel.selectedLat.value }
+    val savedLng = remember { viewModel.selectedLng.value }
+    val hasSaved = savedLat != 0.0 || savedLng != 0.0
+    val initialLocation = if (hasSaved) LatLng(savedLat, savedLng) else LatLng(24.1422, -110.3127)
     val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(initialLocation, 12f)
+        position = CameraPosition.fromLatLngZoom(initialLocation, if (hasSaved) 15f else 12f)
     }
 
-    var markerPosition by remember { mutableStateOf<LatLng?>(null) }
+    var markerPosition by remember { mutableStateOf(if (hasSaved) initialLocation else null) }
 
     Scaffold(
         topBar = {

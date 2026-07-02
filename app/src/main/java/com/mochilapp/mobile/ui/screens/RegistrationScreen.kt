@@ -45,6 +45,10 @@ fun RegistrationScreen(
     var phone by remember { mutableStateOf("") }
     var whatsapp by remember { mutableStateOf("") }
     var businessLocation by remember { mutableStateOf("") }
+    var businessLat by remember { mutableStateOf(0.0) }
+    var businessLng by remember { mutableStateOf(0.0) }
+    var businessHours by remember { mutableStateOf("") }
+    var showLocationPicker by remember { mutableStateOf(false) }
     var rfc by remember { mutableStateOf("") }
     var rnt by remember { mutableStateOf("") }
     var companyType by remember { mutableStateOf(CompanyType.HOTEL) }
@@ -170,10 +174,40 @@ fun RegistrationScreen(
                 OutlinedTextField(
                     value = businessLocation,
                     onValueChange = { businessLocation = it },
-                    label = { Text("Ubicación del negocio") },
+                    label = { Text("Ubicación del negocio (ciudad, zona)") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null) }
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Pin del negocio en el mapa: precarga la ubicación de sus servicios
+                val hasPin = businessLat != 0.0 || businessLng != 0.0
+                OutlinedButton(
+                    onClick = { showLocationPicker = true },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = if (hasPin) Color(0xFFD4EFDF) else Color.Transparent,
+                        contentColor = if (hasPin) Color(0xFF1D8348) else MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Icon(if (hasPin) Icons.Default.CheckCircle else Icons.Default.Map, contentDescription = null)
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        if (hasPin) "Ubicación marcada en el mapa" else "Ubicar mi negocio en el mapa",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = businessHours,
+                    onValueChange = { businessHours = it },
+                    label = { Text("Horario de atención (ej: 09:00 - 18:00)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    leadingIcon = { Icon(Icons.Default.AccessTime, contentDescription = null) }
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -358,6 +392,9 @@ fun RegistrationScreen(
                                 phone = phone,
                                 whatsapp = whatsapp.ifBlank { phone },
                                 businessLocation = businessLocation,
+                                businessLat = businessLat,
+                                businessLng = businessLng,
+                                businessHours = businessHours,
                                 rfc = rfc,
                                 rnt = rnt,
                                 checkIn = checkIn,
@@ -387,6 +424,20 @@ fun RegistrationScreen(
             }
             
             Spacer(modifier = Modifier.height(40.dp))
+        }
+
+        if (showLocationPicker) {
+            LocationPickerDialog(
+                initialLat = businessLat,
+                initialLng = businessLng,
+                title = "Ubica tu negocio",
+                hint = "Toca el mapa donde está tu negocio",
+                onPick = { lat, lng ->
+                    businessLat = lat
+                    businessLng = lng
+                },
+                onDismiss = { showLocationPicker = false }
+            )
         }
 
         if (isLoading && currentStep < 0) { // Fallback loading

@@ -24,7 +24,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.clip
 import coil.compose.AsyncImage
+import com.google.android.gms.maps.GoogleMapOptions
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.rememberCameraPositionState
+import com.google.maps.android.compose.rememberMarkerState
 import com.mochilapp.mobile.data.CompanyType
 import com.mochilapp.mobile.data.RoomFirestore
 import com.mochilapp.mobile.data.ServiceFirestore
@@ -38,7 +46,11 @@ private val meetingPointTypes = listOf(CompanyType.BOAT_TOUR, CompanyType.TOUR_A
 fun AddServiceScreen(
     viewModel: CompanyViewModel,
     onMapClick: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    // Datos del perfil de la empresa para precargar la ubicación del servicio
+    companyLocation: String = "",
+    companyLat: Double = 0.0,
+    companyLng: Double = 0.0
 ) {
     // El borrador vive en el ViewModel: sobrevive la ida y vuelta al mapa
     val draft by viewModel.serviceDraft.collectAsState()
@@ -56,6 +68,22 @@ fun AddServiceScreen(
     }
 
     val isEditing = draft.editingServiceId != null
+
+    // Servicio nuevo: precargar ciudad y pin del perfil de la empresa
+    // (como Airbnb/Booking, que parten de la dirección del anfitrión)
+    LaunchedEffect(Unit) {
+        val current = viewModel.serviceDraft.value
+        if (current.editingServiceId == null) {
+            if (current.location.isBlank() && companyLocation.isNotBlank()) {
+                viewModel.updateServiceDraft(current.copy(location = companyLocation))
+            }
+            if (viewModel.selectedLat.value == 0.0 && viewModel.selectedLng.value == 0.0 &&
+                (companyLat != 0.0 || companyLng != 0.0)
+            ) {
+                viewModel.updateCoordinates(companyLat, companyLng)
+            }
+        }
+    }
 
     LaunchedEffect(serviceError) {
         serviceError?.let { message ->
@@ -430,27 +458,56 @@ fun AddServiceScreen(
                             )
                         }
 
-                        Button(
-                            onClick = onMapClick,
-                            modifier = Modifier.fillMaxWidth().height(52.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (selectedLat != 0.0) Color(0xFFD4EFDF) else Color(0xFFF1F3F5),
-                                contentColor = if (selectedLat != 0.0) Color(0xFF1D8348) else Color.Black
-                            )
-                        ) {
-                            Icon(if (selectedLat != 0.0) Icons.Default.CheckCircle else Icons.Default.Map, contentDescription = null)
-                            Spacer(Modifier.width(12.dp))
+                        if (selectedLat != 0.0 || selectedLng != 0.0) {
+                            // Mini-mapa con el pin elegido; tocarlo abre el selector
+                            val pin = LatLng(selectedLat, selectedLng)
+                            val miniCamera = rememberCameraPositionState()
+                            LaunchedEffect(pin) {
+                                miniCamera.position = CameraPosition.fromLatLngZoom(pin, 15f)
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(150.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                            ) {
+                                GoogleMap(
+                                    modifier = Modifier.matchParentSize(),
+                                    cameraPositionState = miniCamera,
+                                    googleMapOptionsFactory = { GoogleMapOptions().liteMode(true) }
+                                ) {
+                                    val markerState = rememberMarkerState(position = pin)
+                                    LaunchedEffect(pin) { markerState.position = pin }
+                                    Marker(state = markerState)
+                                }
+                                // Captura el toque por encima del mapa lite
+                                Box(
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .clickable { onMapClick() }
+                                )
+                            }
+                            TextButton(onClick = onMapClick, modifier = Modifier.align(Alignment.End)) {
+                                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Ajustar pin en el mapa", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        } else {
+                            Button(
+                                onClick = onMapClick,
+                                modifier = Modifier.fillMaxWidth().height(52.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFFF1F3F5),
+                                    contentColor = Color.Black
+                                )
+                            ) {
+                                Icon(Icons.Default.Map, contentDescription = null)
+                                Spacer(Modifier.width(12.dp))
+                                Text("Seleccionar en mapa", fontWeight = FontWeight.Bold)
+                            }
                             Text(
-                                if (selectedLat != 0.0) "Ubicación seleccionada en mapa"
-                                else "Seleccionar en mapa (Opcional)",
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        if (selectedLat == 0.0) {
-                            Text(
-                                "Aún no has seleccionado un punto en el mapa",
+                                "Marca el punto exacto: así apareces en el mapa turístico del viajero",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color.Gray,
                                 modifier = Modifier.padding(start = 4.dp)

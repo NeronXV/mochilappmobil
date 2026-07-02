@@ -295,7 +295,10 @@ fun MochilappApp(currentLanguage: AppLanguage, onLanguageChange: (AppLanguage) -
                 AddServiceScreen(
                     viewModel = companyViewModel,
                     onMapClick = { backStack.add(Destination.MapPicker) },
-                    onBack = { backStack.removeAt(backStack.size - 1) }
+                    onBack = { backStack.removeAt(backStack.size - 1) },
+                    companyLocation = userProfile?.businessLocation ?: "",
+                    companyLat = userProfile?.businessLat ?: 0.0,
+                    companyLng = userProfile?.businessLng ?: 0.0
                 )
             }
             entry<Destination.MapPicker> {

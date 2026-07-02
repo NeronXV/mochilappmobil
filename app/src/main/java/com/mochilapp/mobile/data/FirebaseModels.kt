@@ -20,6 +20,12 @@ data class UserFirestore(
     val phone: String = "",
     val whatsapp: String = "",
     val businessLocation: String = "",
+    // Pin de la empresa en el mapa (elegido al registrarse); precarga la
+    // ubicación de sus servicios nuevos
+    val businessLat: Double = 0.0,
+    val businessLng: Double = 0.0,
+    // Horario de atención general del negocio (ej: "09:00 - 18:00")
+    val businessHours: String = "",
     val rfc: String = "",
     val rnt: String = "",
     val businessVerified: Boolean = false,
