@@ -63,7 +63,9 @@ data class ServiceFirestore(
     val capacity: Int = 0,
     val departureTimes: List<String> = emptyList(),
     val businessHours: Map<String, String> = emptyMap(),
-    val isOpen: Boolean = true,
+    // @JvmField evita que Firestore recorte el prefijo "is" al mapear booleanos
+    // (sin él, isOpen se lee del campo "open" y estos flags quedan siempre en true)
+    @field:JvmField val isOpen: Boolean = true,
     val amenities: List<String> = emptyList(),
     val rules: List<String> = emptyList(),
     val routeName: String = "",
@@ -77,8 +79,8 @@ data class ServiceFirestore(
     val checkOut: String = "",
     val menu: List<MenuItemFirestore> = emptyList(),
     val rooms: List<RoomFirestore> = emptyList(),
-    val isVisible: Boolean = true,
-    val isRecommended: Boolean = false,
+    @field:JvmField val isVisible: Boolean = true,
+    @field:JvmField val isRecommended: Boolean = false,
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
     val address: String = "",
@@ -186,7 +188,9 @@ data class PromoFirestore(
     val discount: String = "",
     val discountPercent: Int = 0,
     val promoCode: String = "",
-    val isActive: Boolean = true,
+    // @JvmField: fija el campo como "isActive" (sin él Firestore usa "active"
+    // y las Cloud Functions/updates que esperan "isActive" nunca lo ven)
+    @field:JvmField val isActive: Boolean = true,
     val expiresAt: Long = 0L,
     val timestamp: Long = System.currentTimeMillis()
 )
@@ -203,7 +207,7 @@ data class NoticeFirestore(
     val date: String = "",
     val message: String = "",
     val severity: String = "INFO", // INFO | IMPORTANT | URGENT
-    val isActive: Boolean = true,
+    @field:JvmField val isActive: Boolean = true,
     val expiresAt: Long = 0L,
     val timestamp: Long = System.currentTimeMillis()
 )

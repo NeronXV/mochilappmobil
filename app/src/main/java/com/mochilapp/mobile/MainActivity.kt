@@ -46,7 +46,10 @@ class MainActivity : ComponentActivity() {
         messaging.subscribeToTopic("feed_updates")
 
         setContent {
-            var currentLanguage by remember { mutableStateOf(AppLanguage.ESPAÑOL) }
+            // rememberSaveable: que el idioma sobreviva rotaciones y recreaciones
+            var currentLanguage by androidx.compose.runtime.saveable.rememberSaveable {
+                mutableStateOf(AppLanguage.ESPAÑOL)
+            }
             CompositionLocalProvider(LocalAppLanguage provides currentLanguage) {
                 MochilappTheme {
                     MochilappApp(
@@ -116,18 +119,14 @@ fun MochilappApp(currentLanguage: AppLanguage, onLanguageChange: (AppLanguage) -
                 SplashScreen(
                     onTimeout = {
                         if (!isCheckingAuth) {
-                            backStack.removeAt(0)
                             val profile = authViewModel.userProfile.value
-                            if (profile != null) {
-                                val nextDest = if (profile.role == "TRAVELER") {
-                                    Destination.TravelerDashboard
-                                } else {
-                                    Destination.CompanyDashboard
-                                }
-                                backStack.add(nextDest)
-                            } else {
-                                backStack.add(Destination.LanguageSelection)
+                            val nextDest = when {
+                                profile == null -> Destination.LanguageSelection
+                                profile.role == "TRAVELER" -> Destination.TravelerDashboard
+                                else -> Destination.CompanyDashboard
                             }
+                            backStack.clear()
+                            backStack.add(nextDest)
                         }
                     }
                 )
@@ -150,6 +149,9 @@ fun MochilappApp(currentLanguage: AppLanguage, onLanguageChange: (AppLanguage) -
                     authViewModel = authViewModel,
                     onLoginSuccess = { role ->
                         val nextDest = if (role == "TRAVELER") Destination.TravelerDashboard else Destination.CompanyDashboard
+                        // Reemplazar el stack: Login/Idioma no deben quedar debajo
+                        // del dashboard, o "atrás" regresaría al login con sesión activa
+                        backStack.clear()
                         backStack.add(nextDest)
                     },
                     onNavigateToRegistration = { backStack.add(Destination.Registration) }
@@ -160,6 +162,7 @@ fun MochilappApp(currentLanguage: AppLanguage, onLanguageChange: (AppLanguage) -
                     authViewModel = authViewModel,
                     onRegistrationSuccess = { role ->
                         val nextDest = if (role == "TRAVELER") Destination.TravelerDashboard else Destination.CompanyDashboard
+                        backStack.clear()
                         backStack.add(nextDest)
                     },
                     onNavigateToLogin = {
@@ -354,10 +357,15 @@ fun MochilappApp(currentLanguage: AppLanguage, onLanguageChange: (AppLanguage) -
                     bookingId = key.bookingId,
                     viewModel = bookingViewModel,
                     onPaymentSuccess = {
-                        while (backStack.last() !is Destination.TravelerDashboard && backStack.last() !is Destination.CompanyDashboard) {
+                        // size > 1 evita vaciar el stack si el dashboard no está debajo
+                        while (backStack.size > 1 &&
+                            backStack.last() !is Destination.TravelerDashboard &&
+                            backStack.last() !is Destination.CompanyDashboard
+                        ) {
                             backStack.removeAt(backStack.size - 1)
                         }
-                    }
+                    },
+                    onBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) }
                 )
             }
             entry<Destination.SocialFeed> {

@@ -16,10 +16,13 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Mochilapp">
+        <!-- configChanges: rotar o redimensionar no recrea la Activity (Compose
+             se adapta solo); sin esto la recreación tiraba la sesión de navegación -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"
             android:theme="@style/Theme.Mochilapp">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

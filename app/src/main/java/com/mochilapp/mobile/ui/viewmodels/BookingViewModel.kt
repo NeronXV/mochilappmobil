@@ -89,9 +89,8 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
             return
         }
         viewModelScope.launch {
-            // Generate a professional confirmation code MOCHI-XXXXXX
-            val randomPart = java.util.UUID.randomUUID().toString().take(6).uppercase()
-            val code = "MOCHI-$randomPart"
+            // Código de confirmación corto: 6 dígitos, fácil de dictar en persona
+            val code = generateConfirmationCode()
 
             val booking = BookingFirestore(
                 serviceId = serviceId,
@@ -148,8 +147,7 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
             return
         }
         viewModelScope.launch {
-            val randomPart = java.util.UUID.randomUUID().toString().take(6).uppercase()
-            val code = "MOCHI-$randomPart"
+            val code = generateConfirmationCode()
             val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
                 .format(java.util.Date())
             val subtotal = items.sumOf { it.unitPrice * it.quantity }
@@ -185,6 +183,11 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
             }
         }
     }
+
+    // 6 dígitos (100000-999999): el viajero lo dicta o muestra al llegar y la
+    // empresa lo teclea en "Verificar Ticket"; nunca se le muestra a la empresa.
+    private fun generateConfirmationCode(): String =
+        (100000..999999).random().toString()
 
     fun confirmPayment(bookingId: String) {
         viewModelScope.launch {

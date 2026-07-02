@@ -180,7 +180,7 @@ fun BookingDetailScreen(
                         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                             Text("CÓDIGO DE CONFIRMACIÓN", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                             Text(
-                                text = booking.confirmationCode.ifEmpty { "MOCHI-${booking.id.takeLast(6).uppercase()}" },
+                                text = booking.confirmationCode.ifEmpty { booking.id.takeLast(6).uppercase() },
                                 style = MaterialTheme.typography.headlineSmall.copy(
                                     fontWeight = FontWeight.ExtraBold,
                                     letterSpacing = 2.sp,
@@ -254,7 +254,7 @@ fun BookingDetailScreen(
                 ownerContact?.let { owner ->
                     if (owner.whatsapp.isNotBlank() || owner.phone.isNotBlank()) {
                         Spacer(Modifier.height(16.dp))
-                        val code = booking.confirmationCode.ifEmpty { "MOCHI-${booking.id.takeLast(6).uppercase()}" }
+                        val code = booking.confirmationCode.ifEmpty { booking.id.takeLast(6).uppercase() }
                         ContactCompanyButton(
                             whatsapp = owner.whatsapp,
                             phone = owner.phone,

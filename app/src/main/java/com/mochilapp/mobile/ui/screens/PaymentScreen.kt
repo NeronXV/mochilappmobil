@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.QrCode2
@@ -27,11 +28,13 @@ import com.stripe.android.paymentsheet.PaymentSheet
 import com.stripe.android.paymentsheet.rememberPaymentSheet
 import com.mochilapp.mobile.BuildConfig
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PaymentScreen(
     bookingId: String,
     viewModel: BookingViewModel,
-    onPaymentSuccess: () -> Unit
+    onPaymentSuccess: () -> Unit,
+    onBack: () -> Unit = {}
 ) {
     var isProcessing by remember { mutableStateOf(false) }
     var isSuccess by remember { mutableStateOf(false) }
@@ -62,9 +65,30 @@ fun PaymentScreen(
         }
     }
 
+    Scaffold(
+        topBar = {
+            // Salida clara antes de pagar; se bloquea mientras Stripe procesa y
+            // desaparece tras el éxito (ahí se sale con "Ir a mis Reservas")
+            if (!isSuccess) {
+                CenterAlignedTopAppBar(
+                    title = { Text("Pago", fontWeight = FontWeight.Bold) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack, enabled = !isProcessing) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+                        }
+                    },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background
+                    )
+                )
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { innerPadding ->
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .padding(innerPadding)
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(scrollState)
             .padding(24.dp),
@@ -275,7 +299,7 @@ fun PaymentScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                         Text("CÓDIGO DE CONFIRMACIÓN", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                         Text(
-                            text = currentBooking?.confirmationCode ?: "MOCHI-${bookingId.takeLast(6).uppercase()}",
+                            text = (currentBooking?.confirmationCode ?: "").ifEmpty { bookingId.takeLast(6).uppercase() },
                             style = MaterialTheme.typography.headlineSmall.copy(
                                 fontWeight = FontWeight.ExtraBold,
                                 letterSpacing = 2.sp,
@@ -302,6 +326,7 @@ fun PaymentScreen(
                 Text("Volver al Inicio", color = Color.Gray)
             }
         }
+    }
     }
 
     if (isProcessing && currentBooking == null) { // Fallback only for older logic

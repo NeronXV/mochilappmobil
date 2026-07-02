@@ -82,13 +82,17 @@ exports.createPaymentIntent = functions
 });
 
 /**
- * Firestore trigger: when a booking is created, send a push notification
- * to the service owner (business) using their saved FCM token.
+ * Firestore trigger: notify the service owner (business) when a booking is
+ * PAID. Creating a booking alone (status PENDING, before Stripe) no longer
+ * notifies: it was premature and fired for abandoned checkouts too.
  */
-exports.onBookingCreated = functions.firestore
+exports.onBookingPaid = functions.firestore
     .document("bookings/{bookingId}")
-    .onCreate(async (snap) => {
-      const booking = snap.data();
+    .onUpdate(async (change) => {
+      const before = change.before.data();
+      const after = change.after.data();
+      if (before.status === "PAID" || after.status !== "PAID") return null;
+      const booking = after;
       if (!booking.ownerEmail) return null;
 
       const db = admin.firestore();
@@ -107,7 +111,7 @@ exports.onBookingCreated = functions.firestore
         return await admin.messaging().send({
           token: token,
           notification: {
-            title: "¡Nueva reserva! 🎒",
+            title: "¡Nueva reserva pagada! 🎒",
             body: `${traveler} reservó ${slots} lugar(es)` +
                   (booking.serviceName ? ` en ${booking.serviceName}` : "") +
                   (booking.date ? ` para el ${booking.date}` : "") + ".",
@@ -127,7 +131,9 @@ exports.onPromoCreated = functions.firestore
     .document("promos/{promoId}")
     .onCreate(async (snap) => {
       const promo = snap.data();
-      if (!promo.isActive || !promo.content) return null;
+      // Docs legado guardan el flag como "active" (mapeo Kotlin sin @JvmField)
+      const promoActive = promo.isActive !== undefined ? promo.isActive : promo.active;
+      if (!promoActive || !promo.content) return null;
 
       try {
         return await admin.messaging().send({
@@ -152,7 +158,9 @@ exports.onNoticeCreated = functions.firestore
     .document("notices/{noticeId}")
     .onCreate(async (snap) => {
       const notice = snap.data();
-      if (!notice.isActive || !notice.message || !notice.serviceId) return null;
+      // Docs legado guardan el flag como "active" (mapeo Kotlin sin @JvmField)
+      const noticeActive = notice.isActive !== undefined ? notice.isActive : notice.active;
+      if (!noticeActive || !notice.message || !notice.serviceId) return null;
 
       const db = admin.firestore();
       let query = db.collection("bookings")

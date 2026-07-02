@@ -1999,8 +1999,9 @@ fun BookingStatusSummaryCard(
     }
 }
 
-// Verificador de tickets: la empresa teclea el código MOCHI-XXXXXX del viajero,
-// se valida contra sus reservas y permite confirmar la llegada (check-in)
+// Verificador de tickets: la empresa teclea el código de 6 dígitos del viajero,
+// se valida contra sus reservas y permite confirmar la llegada (check-in).
+// Acepta también códigos legado con prefijo MOCHI-.
 @Composable
 fun TicketVerifierDialog(
     bookings: List<com.mochilapp.mobile.data.BookingFirestore>,
@@ -2011,8 +2012,11 @@ fun TicketVerifierDialog(
     var searched by remember { mutableStateOf(false) }
     var checkedIn by remember { mutableStateOf(false) }
 
-    val normalizedCode = codeInput.trim().uppercase()
-    val found = if (searched) bookings.find { it.confirmationCode.equals(normalizedCode, ignoreCase = true) } else null
+    val normalizedCode = codeInput.trim().uppercase().removePrefix("MOCHI-")
+    val found = if (searched) bookings.find {
+        it.confirmationCode.isNotBlank() &&
+            it.confirmationCode.uppercase().removePrefix("MOCHI-") == normalizedCode
+    } else null
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -2032,7 +2036,7 @@ fun TicketVerifierDialog(
                         searched = false
                         checkedIn = false
                     },
-                    label = { Text("Código del viajero (MOCHI-XXXXXX)") },
+                    label = { Text("Código del viajero (6 dígitos)") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     singleLine = true

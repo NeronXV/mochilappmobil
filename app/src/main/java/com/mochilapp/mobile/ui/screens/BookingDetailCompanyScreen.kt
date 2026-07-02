@@ -120,14 +120,23 @@ fun BookingDetailCompanyScreen(
                         HorizontalDivider(color = Color(0xFFF1F3F5))
                         Spacer(Modifier.height(24.dp))
 
-                        Text("CÓDIGO MOCHI", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        // El código solo lo conoce el viajero: mostrarlo aquí permitiría
+                        // que cualquiera con acceso al panel lo usara antes que él.
+                        Text("CÓDIGO DE VERIFICACIÓN", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                         Text(
-                            text = booking.confirmationCode.ifEmpty { booking.id.takeLast(6).uppercase() },
+                            text = "• • • • • •",
                             style = MaterialTheme.typography.headlineMedium.copy(
                                 fontWeight = FontWeight.Black,
                                 letterSpacing = 2.sp,
                                 color = MaterialTheme.colorScheme.primary
                             )
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "El viajero te mostrará su código de 6 dígitos al llegar. Valídalo en Reservas → Verificar Ticket.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                         
                         Spacer(Modifier.height(32.dp))
