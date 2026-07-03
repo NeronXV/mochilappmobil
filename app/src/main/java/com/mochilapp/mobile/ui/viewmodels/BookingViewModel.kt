@@ -191,12 +191,6 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
     private fun generateConfirmationCode(): String =
         (100000..999999).random().toString()
 
-    fun confirmPayment(bookingId: String) {
-        viewModelScope.launch {
-            repository.updateBookingStatus(bookingId, "PAID")
-        }
-    }
-
     fun updateStatus(bookingId: String, status: String, userUid: String) {
         viewModelScope.launch {
             val updateData = mutableMapOf<String, Any>(
@@ -226,26 +220,9 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
         }
     }
 
-    suspend fun createPaymentIntent(
-        bookingId: String,
-        amount: Double,
-        currency: String = "mxn",
-        serviceId: String,
-        ownerEmail: String,
-        travelerEmail: String,
-        promoCode: String = "",
-        discountAmount: Double = 0.0
-    ): Map<String, Any>? {
-        val data = mapOf(
-            "bookingId" to bookingId,
-            "amount" to (amount * 100).toInt(), // Cents
-            "currency" to currency,
-            "serviceId" to serviceId,
-            "ownerEmail" to ownerEmail,
-            "travelerEmail" to travelerEmail,
-            "promoCode" to promoCode,
-            "discountAmount" to discountAmount
-        )
-        return repository.createPaymentIntent(data)
+    // El servidor calcula el monto y los datos del cobro leyendo la reserva de
+    // Firestore: el cliente solo dice QUÉ reserva paga, nunca CUÁNTO.
+    suspend fun createPaymentIntent(bookingId: String): Map<String, Any>? {
+        return repository.createPaymentIntent(mapOf("bookingId" to bookingId))
     }
 }

@@ -22,7 +22,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import com.mochilapp.mobile.ui.viewmodels.BookingViewModel
-import kotlinx.coroutines.delay
 import com.stripe.android.PaymentConfiguration
 import com.stripe.android.paymentsheet.PaymentSheet
 import com.stripe.android.paymentsheet.rememberPaymentSheet
@@ -53,7 +52,9 @@ fun PaymentScreen(
         isProcessing = false
         when (result) {
             is com.stripe.android.paymentsheet.PaymentSheetResult.Completed -> {
-                viewModel.confirmPayment(bookingId)
+                // El estado PAID lo escribe el webhook de Stripe en el servidor
+                // (la app ya no puede marcar reservas como pagadas); aquí solo
+                // mostramos el ticket. La reserva se actualiza sola en segundos.
                 isSuccess = true
             }
             is com.stripe.android.paymentsheet.PaymentSheetResult.Canceled -> {
@@ -201,15 +202,7 @@ fun PaymentScreen(
                         isProcessing = true
                         errorMessage = null
                         scope.launch {
-                            val result = viewModel.createPaymentIntent(
-                                bookingId = bookingId,
-                                amount = currentBooking.totalPrice,
-                                serviceId = currentBooking.serviceId,
-                                ownerEmail = currentBooking.ownerEmail,
-                                travelerEmail = currentBooking.travelerEmail,
-                                promoCode = currentBooking.promoCode,
-                                discountAmount = currentBooking.discountAmount
-                            )
+                            val result = viewModel.createPaymentIntent(bookingId)
                             val clientSecret = result?.get("clientSecret") as? String
                             if (clientSecret != null) {
                                 paymentSheet.presentWithPaymentIntent(clientSecret)
@@ -327,15 +320,6 @@ fun PaymentScreen(
             }
         }
     }
-    }
-
-    if (isProcessing && currentBooking == null) { // Fallback only for older logic
-        LaunchedEffect(Unit) {
-            delay(2500)
-            viewModel.confirmPayment(bookingId)
-            isProcessing = false
-            isSuccess = true
-        }
     }
 }
 

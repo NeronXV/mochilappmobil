@@ -7,6 +7,9 @@ const stripe = require("stripe");
 /**
  * Callable function to create a Stripe PaymentIntent for Mochilapp.
  * Requires STRIPE_MOCHILAPP_SECRET_KEY to be set in Firebase Secrets.
+ *
+ * The amount is ALWAYS computed server-side from the booking document;
+ * anything the client sends is ignored so a tampered app cannot pay less.
  */
 exports.createPaymentIntent = functions
     .runWith({ secrets: ["STRIPE_MOCHILAPP_SECRET_KEY"] })
@@ -19,25 +22,7 @@ exports.createPaymentIntent = functions
     );
   }
 
-  // 2. Input Validation
-  const {
-    amount,
-    currency = "mxn",
-    bookingId,
-    serviceId,
-    ownerEmail,
-    travelerEmail,
-    promoCode = "",
-    discountAmount = 0,
-  } = data;
-
-  if (!amount || amount <= 0) {
-    throw new functions.https.HttpsError(
-        "invalid-argument",
-        "The amount must be a positive integer."
-    );
-  }
-
+  const {bookingId, currency = "mxn"} = data;
   if (!bookingId) {
     throw new functions.https.HttpsError(
         "invalid-argument",
@@ -45,12 +30,55 @@ exports.createPaymentIntent = functions
     );
   }
 
+  // 2. Load the booking: it is the single source of truth for the charge
+  const bookingSnap = await admin.firestore()
+      .collection("bookings").doc(bookingId).get();
+  if (!bookingSnap.exists) {
+    throw new functions.https.HttpsError(
+        "not-found",
+        "La reserva no existe."
+    );
+  }
+  const booking = bookingSnap.data();
+
+  // 3. Only the traveler who owns the booking can pay for it
+  const callerEmail = (context.auth.token.email || "").toLowerCase();
+  const travelerEmail = (booking.travelerEmail || "").toLowerCase();
+  if (!callerEmail || callerEmail !== travelerEmail) {
+    throw new functions.https.HttpsError(
+        "permission-denied",
+        "Esta reserva no pertenece a tu cuenta."
+    );
+  }
+
+  if (booking.status === "PAID") {
+    throw new functions.https.HttpsError(
+        "failed-precondition",
+        "Esta reserva ya está pagada."
+    );
+  }
+  if (booking.status === "CANCELLED") {
+    throw new functions.https.HttpsError(
+        "failed-precondition",
+        "Esta reserva expiró o fue cancelada. Crea una nueva reserva."
+    );
+  }
+
+  // 4. Server-side amount, in cents
+  const amount = Math.round(Number(booking.totalPrice) * 100);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new functions.https.HttpsError(
+        "failed-precondition",
+        "La reserva tiene un total inválido."
+    );
+  }
+
   try {
     const stripeClient = stripe(process.env.STRIPE_MOCHILAPP_SECRET_KEY);
 
-    // 3. Create PaymentIntent
+    // 5. Create PaymentIntent
     const paymentIntent = await stripeClient.paymentIntents.create({
-      amount: Math.round(amount), // Ensure integer (cents)
+      amount: amount,
       currency: currency.toLowerCase(),
       automatic_payment_methods: {
         enabled: true,
@@ -58,16 +86,15 @@ exports.createPaymentIntent = functions
       metadata: {
         app: "mochilapp",
         bookingId: bookingId,
-        serviceId: serviceId || "N/A",
-        ownerEmail: ownerEmail || "N/A",
-        travelerEmail: travelerEmail || "N/A",
-        promoCode: promoCode || "NONE",
-        discountAmount: discountAmount.toString(),
-        environment: "test",
+        serviceId: booking.serviceId || "N/A",
+        ownerEmail: booking.ownerEmail || "N/A",
+        travelerEmail: booking.travelerEmail || "N/A",
+        promoCode: booking.promoCode || "NONE",
+        discountAmount: String(booking.discountAmount || 0),
       },
     });
 
-    // 4. Return clientSecret to the app
+    // 6. Return clientSecret to the app
     return {
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
@@ -80,6 +107,91 @@ exports.createPaymentIntent = functions
     );
   }
 });
+
+/**
+ * Stripe webhook: the ONLY writer of status=PAID. The app no longer marks
+ * bookings as paid (and security rules block it); Stripe notifies us here
+ * when the charge actually went through, so a crash or lost connection on
+ * the phone can never leave a charged booking stuck in PENDING.
+ *
+ * Setup: Stripe Dashboard → Developers → Webhooks → endpoint for
+ * payment_intent.succeeded / payment_intent.payment_failed, then store the
+ * signing secret as STRIPE_MOCHILAPP_WEBHOOK_SECRET in Firebase Secrets.
+ */
+exports.stripeWebhook = functions
+    .runWith({
+      secrets: ["STRIPE_MOCHILAPP_SECRET_KEY", "STRIPE_MOCHILAPP_WEBHOOK_SECRET"],
+    })
+    .https.onRequest(async (req, res) => {
+      if (req.method !== "POST") {
+        res.status(405).send("Method Not Allowed");
+        return;
+      }
+
+      let event;
+      try {
+        const stripeClient = stripe(process.env.STRIPE_MOCHILAPP_SECRET_KEY);
+        event = stripeClient.webhooks.constructEvent(
+            req.rawBody,
+            req.headers["stripe-signature"],
+            process.env.STRIPE_MOCHILAPP_WEBHOOK_SECRET,
+        );
+      } catch (error) {
+        console.error("Webhook signature verification failed:", error.message);
+        res.status(400).send(`Webhook Error: ${error.message}`);
+        return;
+      }
+
+      const intent = event.data.object;
+      const metadata = intent.metadata || {};
+      const bookingId = metadata.bookingId;
+      if (metadata.app !== "mochilapp" || !bookingId) {
+        // Not ours (the Stripe account may serve other apps); acknowledge it.
+        res.json({received: true});
+        return;
+      }
+
+      if (event.type === "payment_intent.succeeded") {
+        const bookingRef = admin.firestore()
+            .collection("bookings").doc(bookingId);
+        try {
+          await admin.firestore().runTransaction(async (tx) => {
+            const doc = await tx.get(bookingRef);
+            if (!doc.exists) {
+              console.error(
+                  `Pago ${intent.id} recibido para reserva inexistente ` +
+                  `${bookingId}. Revisar manualmente en Stripe.`);
+              return;
+            }
+            const current = doc.data();
+            if (current.status === "PAID") return; // Retry de Stripe: ya procesado
+            if (current.status === "CANCELLED") {
+              // Pagó justo cuando expiraba el hold: el pago manda, se reinstala.
+              console.warn(
+                  `Reserva ${bookingId} estaba CANCELLED pero el pago ` +
+                  `${intent.id} se completó; se reinstala como PAID.`);
+            }
+            tx.update(bookingRef, {
+              status: "PAID",
+              paidAt: Date.now(),
+              paymentIntentId: intent.id,
+              amountPaid: intent.amount,
+            });
+          });
+        } catch (error) {
+          console.error(`Error marcando ${bookingId} como PAID:`, error);
+          // 500 → Stripe reintenta el evento, no se pierde el pago
+          res.status(500).send("Error updating booking");
+          return;
+        }
+      } else if (event.type === "payment_intent.payment_failed") {
+        const message = (intent.last_payment_error &&
+            intent.last_payment_error.message) || "unknown";
+        console.warn(`Pago fallido para reserva ${bookingId}: ${message}`);
+      }
+
+      res.json({received: true});
+    });
 
 /**
  * Firestore trigger: notify the service owner (business) when a booking is

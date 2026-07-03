@@ -352,14 +352,6 @@ class FirebaseRepository {
         awaitClose { subscription.remove() }
     }
 
-    suspend fun updateBookingStatus(id: String, status: String) {
-        try {
-            firestore.collection("bookings").document(id).update("status", status).await()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error updating booking status", e)
-        }
-    }
-
     suspend fun updateBookingFields(id: String, fields: Map<String, Any>) {
         try {
             firestore.collection("bookings").document(id).update(fields).await()
