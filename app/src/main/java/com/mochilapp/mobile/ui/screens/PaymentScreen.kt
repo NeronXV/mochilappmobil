@@ -10,7 +10,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -303,7 +302,10 @@ fun PaymentScreen(
                             )
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        Icon(Icons.Default.QrCode2, contentDescription = null, modifier = Modifier.size(100.dp), tint = Color.DarkGray)
+                        QrCodeImage(
+                            content = (currentBooking?.confirmationCode ?: "").ifEmpty { bookingId.takeLast(6).uppercase() },
+                            sizeDp = 120
+                        )
                     }
                 }
             }

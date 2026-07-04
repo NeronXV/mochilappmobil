@@ -62,6 +62,7 @@ dependencies {
     implementation(libs.firebase.functions)
     implementation(libs.firebase.crashlytics)
     implementation(libs.firebase.analytics)
+    implementation(libs.zxing.core)
     implementation(libs.stripe.android)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.accompanist.permissions)

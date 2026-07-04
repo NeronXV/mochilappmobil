@@ -188,7 +188,10 @@ fun BookingDetailScreen(
                                 )
                             )
                             Spacer(Modifier.height(16.dp))
-                            Icon(Icons.Default.QrCode2, contentDescription = null, modifier = Modifier.size(140.dp), tint = Color.DarkGray)
+                            QrCodeImage(
+                                content = booking.confirmationCode.ifEmpty { booking.id.takeLast(6).uppercase() },
+                                sizeDp = 140
+                            )
                         }
                     }
                 }
