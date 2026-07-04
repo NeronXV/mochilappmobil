@@ -19,3 +19,24 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# --- Crashlytics: stack traces legibles (el mapping se sube solo) ---
+-keepattributes SourceFile,LineNumberTable
+
+# --- Firestore: los modelos se deserializan por reflexión (toObject).
+# Sin esto, R8 renombra los campos y TODOS los documentos llegarían vacíos.
+-keep class com.mochilapp.mobile.data.** { *; }
+-keepattributes Signature, *Annotation*
+
+# --- kotlinx.serialization (Navigation 3 serializa los Destination) ---
+-keepattributes InnerClasses
+-keep,includedescriptorclasses class com.mochilapp.mobile.**$$serializer { *; }
+-keepclassmembers class com.mochilapp.mobile.** {
+    *** Companion;
+}
+-keepclasseswithmembers class com.mochilapp.mobile.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+
+# --- Stripe: referencias opcionales que no usamos (evita fallos de R8) ---
+-dontwarn com.stripe.android.pushProvisioning.**
