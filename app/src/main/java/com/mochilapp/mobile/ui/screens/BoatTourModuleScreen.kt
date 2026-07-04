@@ -72,16 +72,25 @@ fun BoatTourModuleScreen(
     val capacity = selectedService?.capacity ?: 0
     var showCapacityDialog by remember { mutableStateOf(false) }
 
-    // Misma lógica de filtrado que BoatTourModule.tsx del panel web
-    val activeBookings = remember(bookings, selectedServiceId, selectedDate, selectedTime, selectedService) {
-        bookings.filter { b ->
-            if (b.serviceId != selectedServiceId) return@filter false
-            if (b.date != selectedDate) return@filter false
-            if (b.status == "CANCELLED") return@filter false
-            val hasTimes = !selectedService?.departureTimes.isNullOrEmpty()
-            if (hasTimes && selectedTime.isNotEmpty() && b.departureTime.isNotEmpty()) {
-                b.departureTime == selectedTime
-            } else true
+    val dayBookings = remember(bookings, selectedServiceId, selectedDate) {
+        bookings.filter {
+            it.serviceId == selectedServiceId && it.date == selectedDate && it.status != "CANCELLED"
+        }
+    }
+    val hasTimes = !selectedService?.departureTimes.isNullOrEmpty()
+
+    // Reservas legado sin horario: antes contaban en TODAS las salidas (cada
+    // horario las sumaba a su ocupación). Ahora van aparte, visibles en el
+    // manifiesto pero sin descontar cupo de una salida concreta. Crear nuevas
+    // reservas sin horario ya no es posible: BookingFlow exige elegir salida.
+    val noTimeBookings = remember(dayBookings, hasTimes) {
+        if (hasTimes) dayBookings.filter { it.departureTime.isEmpty() } else emptyList()
+    }
+    val activeBookings = remember(dayBookings, selectedTime, hasTimes) {
+        when {
+            hasTimes && selectedTime.isNotEmpty() -> dayBookings.filter { it.departureTime == selectedTime }
+            hasTimes -> dayBookings.filter { it.departureTime.isNotEmpty() }
+            else -> dayBookings
         }
     }
 
@@ -363,6 +372,23 @@ fun BoatTourModuleScreen(
                 }
             } else {
                 items(activeBookings) { booking ->
+                    ManifestRow(booking)
+                }
+            }
+
+            // Reservas legado sin horario: visibles para que la empresa las
+            // reubique, pero fuera del conteo de cupos de la salida
+            if (noTimeBookings.isNotEmpty()) {
+                item {
+                    Text(
+                        "SIN HORARIO ASIGNADO (${noTimeBookings.size}) — no descuentan cupo de esta salida",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color(0xFFD68910),
+                        letterSpacing = 1.sp
+                    )
+                }
+                items(noTimeBookings) { booking ->
                     ManifestRow(booking)
                 }
             }
