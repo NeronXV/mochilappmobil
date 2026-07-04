@@ -2,11 +2,8 @@ package com.mochilapp.mobile.ui.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.content
 import com.mochilapp.mobile.data.ServiceFirestore
 import com.mochilapp.mobile.repository.FirebaseRepository
-import com.mochilapp.mobile.ui.theme.Translations
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -20,20 +17,11 @@ data class ChatMessage(
     val recommendedServices: List<ServiceFirestore> = emptyList()
 )
 
-// Alias que siempre apunta al modelo flash estable vigente; evita que el bot
-// se rompa cuando Google retire una versión específica (como pasó con 1.5)
-private const val MOCHIBOT_MODEL = "gemini-flash-latest"
-
+// La llamada a Gemini vive en la Cloud Function askMochi (la API key está en
+// Secret Manager, no en el APK). Aquí solo se arma el contexto y el historial.
 class AiViewModel(
-    private val repository: FirebaseRepository,
-    private val apiKey: String
+    private val repository: FirebaseRepository
 ) : ViewModel() {
-    // Usamos el modelo centralizado
-    private val generativeModel = GenerativeModel(
-        modelName = MOCHIBOT_MODEL,
-        apiKey = apiKey
-    )
-
     private val _messages = MutableStateFlow<List<ChatMessage>>(listOf(
         ChatMessage("¡Hola! Soy tu asistente inteligente de Mochilapp. Puedo ayudarte a encontrar los mejores tours, hoteles y planificar tu viaje basándome en los servicios reales disponibles. ¿A dónde quieres ir?", false)
     ))
@@ -42,53 +30,46 @@ class AiViewModel(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
-    private val chat = generativeModel.startChat()
-
     fun sendMessage(userText: String, lang: String = "es") {
         if (userText.isBlank()) return
+
+        // Historial previo (sin el mensaje nuevo) para que Mochi mantenga hilo;
+        // el saludo inicial se omite, no aporta contexto.
+        val history = _messages.value.drop(1).map { msg ->
+            mapOf("role" to if (msg.isUser) "user" else "model", "text" to msg.text)
+        }
 
         _messages.value = _messages.value + ChatMessage(userText, true)
         _isLoading.value = true
 
-        // Log de diagnóstico seguro
-        android.util.Log.d("MochiBot_Debug", "Enviando mensaje. API Key presente: ${apiKey.isNotBlank()}. Modelo: $MOCHIBOT_MODEL. Idioma: $lang")
-
         viewModelScope.launch {
             try {
-                if (apiKey.isBlank() || apiKey == "MOCK_API_KEY") {
-                    android.util.Log.e("MochiBot_Debug", "Error: API Key faltante o inválida.")
-                    _messages.value = _messages.value + ChatMessage(Translations.getString("ai_maintenance_msg", lang), false)
-                    return@launch
-                }
-
                 // Fetch real services context
                 val availableServices = repository.getAllServices().first().take(15)
                 val contextPrompt = buildContextPrompt(availableServices, lang)
-                
+
                 val fullPrompt = "$contextPrompt\n\nUsuario dice: $userText"
-                
-                val response = chat.sendMessage(fullPrompt)
-                val raw = response.text ?: "No recibí una respuesta clara de la IA."
+
+                val raw = repository.askMochi(fullPrompt, history)
+                if (raw.isNullOrBlank()) {
+                    _messages.value = _messages.value + ChatMessage(
+                        if (lang == "en") "MochiBot is currently unavailable. Try again later."
+                        else "MochiBot no está disponible por el momento. Intenta más tarde.",
+                        false
+                    )
+                    return@launch
+                }
                 val (cleanText, ids) = extractRecommendedIds(raw)
                 // Solo IDs que existen de verdad; descarta alucinaciones del modelo.
                 val recommended = ids.mapNotNull { id -> availableServices.find { it.id == id } }
                 _messages.value = _messages.value + ChatMessage(cleanText, false, recommended)
             } catch (e: Exception) {
-                // Registro detallado en Logcat para depuración
-                val errorType = e.javaClass.simpleName
-                val errorMsg = e.message ?: "Sin mensaje"
-                android.util.Log.e("MochiBot_Debug", "Error real de Gemini ($errorType): $errorMsg")
-                
-                // Análisis de causas comunes
-                when {
-                    errorMsg.contains("403") -> android.util.Log.e("MochiBot_Debug", "Causa: API Key restringida o sin permisos para Generative AI.")
-                    errorMsg.contains("404") -> android.util.Log.e("MochiBot_Debug", "Causa: Modelo '$MOCHIBOT_MODEL' no encontrado en esta región.")
-                    errorMsg.contains("429") || errorMsg.contains("RESOURCE_EXHAUSTED") -> android.util.Log.e("MochiBot_Debug", "Causa: Créditos/cuota de Gemini agotados. Revisa facturación en https://ai.studio/projects")
-                    errorMsg.contains("DEVELOPER_ERROR") -> android.util.Log.e("MochiBot_Debug", "Causa: Problema de configuración de Google Play Services o SHA-1.")
-                }
-                
-                // Mostrar mensaje amigable al usuario
-                _messages.value = _messages.value + ChatMessage(if(lang == "en") "MochiBot is currently unavailable. Try again later." else "MochiBot no está disponible por el momento. Intenta más tarde.", false)
+                android.util.Log.e("MochiBot_Debug", "Error consultando askMochi", e)
+                _messages.value = _messages.value + ChatMessage(
+                    if (lang == "en") "MochiBot is currently unavailable. Try again later."
+                    else "MochiBot no está disponible por el momento. Intenta más tarde.",
+                    false
+                )
             } finally {
                 _isLoading.value = false
             }

@@ -75,7 +75,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MochilappApp(currentLanguage: AppLanguage, onLanguageChange: (AppLanguage) -> Unit) {
     val repository = remember { FirebaseRepository() }
-    val geminiApiKey = BuildConfig.GEMINI_API_KEY
 
     // Debug Log
     LaunchedEffect(currentLanguage) {
@@ -403,7 +402,7 @@ fun MochilappApp(currentLanguage: AppLanguage, onLanguageChange: (AppLanguage) -
             }
             entry<Destination.AiAssistant> {
                 val aiViewModel: AiViewModel = viewModel(
-                    factory = ViewModelFactory(repository = repository, apiKey = geminiApiKey)
+                    factory = ViewModelFactory(repository = repository)
                 )
                 AiAssistantScreen(
                     viewModel = aiViewModel,

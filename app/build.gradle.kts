@@ -30,9 +30,6 @@ android {
         val mapsApiKey = localProps.getProperty("MAPS_API_KEY") ?: ""
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
 
-        val geminiApiKey = localProps.getProperty("GEMINI_API_KEY") ?: ""
-        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
-
         val stripePublishableKey = localProps.getProperty("STRIPE_PUBLISHABLE_KEY") ?: ""
         buildConfigField("String", "STRIPE_PUBLISHABLE_KEY", "\"$stripePublishableKey\"")
     }
@@ -103,7 +100,6 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.play.services.location)
     implementation(libs.play.services.auth)
-    implementation(libs.generativeai)
     implementation(libs.retrofit)
     implementation(libs.google.maps.compose)
     implementation(libs.play.services.maps)

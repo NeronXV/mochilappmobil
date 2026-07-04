@@ -8,8 +8,7 @@ class ViewModelFactory(
     private val repository: FirebaseRepository,
     private val userEmail: String? = null,
     private val userName: String? = null,
-    private val userUid: String? = null,
-    private val apiKey: String? = null
+    private val userUid: String? = null
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return when {
@@ -24,7 +23,7 @@ class ViewModelFactory(
             modelClass.isAssignableFrom(SocialViewModel::class.java) ->
                 SocialViewModel(repository, userEmail!!, userName!!, userUid!!) as T
             modelClass.isAssignableFrom(AiViewModel::class.java) ->
-                AiViewModel(repository, apiKey!!) as T
+                AiViewModel(repository) as T
             else -> throw IllegalArgumentException("Unknown ViewModel class")
         }
     }

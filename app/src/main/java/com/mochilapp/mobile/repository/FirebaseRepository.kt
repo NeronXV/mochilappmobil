@@ -639,6 +639,21 @@ class FirebaseRepository {
         }
     }
 
+    // --- MochiBot (Gemini vía Cloud Function; la API key vive en el servidor) ---
+    suspend fun askMochi(prompt: String, history: List<Map<String, String>>): String? {
+        return try {
+            val result = functions
+                .getHttpsCallable("askMochi")
+                .call(mapOf("prompt" to prompt, "history" to history))
+                .await()
+            @Suppress("UNCHECKED_CAST")
+            (result.getData() as? Map<String, Any>)?.get("text") as? String
+        } catch (e: Exception) {
+            Log.e(TAG, "Error calling askMochi", e)
+            null
+        }
+    }
+
     // --- Storage ---
     private suspend fun uploadImage(uri: Uri, path: String): String {
         return try {

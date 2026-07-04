@@ -194,6 +194,80 @@ exports.stripeWebhook = functions
     });
 
 /**
+ * MochiBot proxy: the Gemini API key lives in Secret Manager, never in the
+ * APK (it used to ship in BuildConfig and was extractable). Same pattern as
+ * Stripe. The app sends the prompt + chat history; we call Gemini and return
+ * the text.
+ */
+exports.askMochi = functions
+    .runWith({ secrets: ["GEMINI_MOCHILAPP_KEY"], timeoutSeconds: 60 })
+    .https.onCall(async (data, context) => {
+      if (!context.auth) {
+        throw new functions.https.HttpsError(
+            "unauthenticated",
+            "The function must be called while authenticated."
+        );
+      }
+
+      const prompt = String(data.prompt || "").trim();
+      if (!prompt) {
+        throw new functions.https.HttpsError(
+            "invalid-argument",
+            "Prompt is required."
+        );
+      }
+
+      // Historial acotado: máx 20 turnos y 4000 chars por turno
+      const history = (Array.isArray(data.history) ? data.history : [])
+          .slice(-20)
+          .filter((m) => m && m.text)
+          .map((m) => ({
+            role: m.role === "model" ? "model" : "user",
+            parts: [{text: String(m.text).slice(0, 4000)}],
+          }));
+
+      const contents = [
+        ...history,
+        {role: "user", parts: [{text: prompt.slice(0, 8000)}]},
+      ];
+
+      // Alias estable del modelo flash vigente (mismo criterio que la app:
+      // evita romperse cuando Google retira una versión específica)
+      const model = "gemini-flash-latest";
+      const url = "https://generativelanguage.googleapis.com/v1beta/models/" +
+          model + ":generateContent?key=" + process.env.GEMINI_MOCHILAPP_KEY;
+
+      try {
+        const resp = await fetch(url, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({contents}),
+        });
+        if (!resp.ok) {
+          const body = await resp.text();
+          console.error("Gemini error", resp.status, body.slice(0, 500));
+          throw new functions.https.HttpsError(
+              "internal",
+              "Gemini respondió " + resp.status
+          );
+        }
+        const json = await resp.json();
+        const candidate = (json.candidates || [])[0];
+        const parts = (candidate && candidate.content &&
+            candidate.content.parts) || [];
+        const text = parts.map((p) => p.text || "").join("");
+        return {text: text};
+      } catch (error) {
+        if (error instanceof functions.https.HttpsError) throw error;
+        console.error("askMochi error:", error);
+        throw new functions.https.HttpsError(
+            "internal",
+            error.message || "Error consultando a MochiBot"
+        );
+      }
+    });
+
+/**
  * Firestore trigger: notify the service owner (business) when a booking is
  * PAID. Creating a booking alone (status PENDING, before Stripe) no longer
  * notifies: it was premature and fired for abandoned checkouts too.
