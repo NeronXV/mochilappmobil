@@ -2,7 +2,6 @@ package com.mochilapp.mobile.ui.theme
 
 import android.app.Activity
 import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -63,7 +62,11 @@ private val DarkColorScheme = darkColorScheme(
 
 @Composable
 fun MochilappTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    // Forzado a claro: las pantallas tienen fondos blancos fijos (Login,
+    // Registro, Pago...) y con el tema oscuro del sistema el texto se volvía
+    // blanco sobre blanco (invisible). Un modo oscuro real requiere revisar
+    // todas las pantallas antes de volver a obedecer isSystemInDarkTheme().
+    darkTheme: Boolean = false,
     // Desactivado: el color dinámico de Android 12+ sustituía la paleta de
     // marca (azul/verde) por colores del fondo de pantalla del usuario
     dynamicColor: Boolean = false,
