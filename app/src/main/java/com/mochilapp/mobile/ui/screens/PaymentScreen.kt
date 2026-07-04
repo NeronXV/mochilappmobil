@@ -55,6 +55,9 @@ fun PaymentScreen(
                 // El estado PAID lo escribe el webhook de Stripe en el servidor
                 // (la app ya no puede marcar reservas como pagadas); aquí solo
                 // mostramos el ticket. La reserva se actualiza sola en segundos.
+                com.mochilapp.mobile.utils.Telemetry.logPurchase(
+                    bookingId, currentBooking?.totalPrice ?: 0.0
+                )
                 isSuccess = true
             }
             is com.stripe.android.paymentsheet.PaymentSheetResult.Canceled -> {

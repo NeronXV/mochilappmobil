@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mochilapp.mobile.data.BookingFirestore
 import com.mochilapp.mobile.data.OrderItemFirestore
 import com.mochilapp.mobile.repository.FirebaseRepository
+import com.mochilapp.mobile.utils.Telemetry
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -115,8 +116,10 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
             try {
                 val id = repository.addBooking(booking)
                 _bookingResult.value = id
+                Telemetry.logBookingCreated(serviceId, serviceName, slots, totalPrice, isFoodOrder = false)
             } catch (e: Exception) {
                 android.util.Log.e("BookingViewModel", "Error creating booking", e)
+                Telemetry.recordError("createBooking", e)
                 _bookingError.value = if (e.message?.contains("PERMISSION_DENIED") == true) {
                     "No se pudo crear la reserva: permisos insuficientes. Intenta cerrar sesión y volver a entrar."
                 } else {
@@ -175,8 +178,12 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
             try {
                 val id = repository.addBooking(booking)
                 _bookingResult.value = id
+                Telemetry.logBookingCreated(
+                    serviceId, serviceName, booking.slots, booking.totalPrice, isFoodOrder = true
+                )
             } catch (e: Exception) {
                 android.util.Log.e("BookingViewModel", "Error creating food order", e)
+                Telemetry.recordError("createFoodOrder", e)
                 _bookingError.value = if (e.message?.contains("PERMISSION_DENIED") == true) {
                     "No se pudo crear el pedido: permisos insuficientes. Intenta cerrar sesión y volver a entrar."
                 } else {

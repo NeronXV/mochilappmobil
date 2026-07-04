@@ -7,6 +7,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.mochilapp.mobile.data.UserFirestore
 import com.mochilapp.mobile.repository.FirebaseRepository
+import com.mochilapp.mobile.utils.Telemetry
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -86,6 +87,8 @@ class AuthViewModel(private val repository: FirebaseRepository) : ViewModel() {
         profileJob = viewModelScope.launch {
             repository.observeUserProfile(uid).collect { profile ->
                 if (profile == null) return@collect
+                // Sesión identificada en Crashlytics/Analytics (uid, nunca email)
+                Telemetry.setUser(profile.uid, profile.role)
                 val prevPoints = lastPoints
                 val prevBadges = lastBadges
                 _userProfile.value = profile
@@ -123,10 +126,12 @@ class AuthViewModel(private val repository: FirebaseRepository) : ViewModel() {
                         repository.saveUserProfile(newProfile)
                         _userProfile.value = newProfile
                         startObservingProfile(user.uid)
+                        Telemetry.logSignUp("google", "TRAVELER")
                         onSuccess("TRAVELER")
                     } else {
                         _userProfile.value = profile
                         startObservingProfile(user.uid)
+                        Telemetry.logLogin("google")
                         onSuccess(profile.role)
                     }
                 }
@@ -191,6 +196,7 @@ class AuthViewModel(private val repository: FirebaseRepository) : ViewModel() {
                     repository.saveUserProfile(profile)
                     _userProfile.value = profile
                     startObservingProfile(uid)
+                    Telemetry.logSignUp("email", role)
                     onSuccess(role)
                 }
             } catch (e: Exception) {
@@ -211,6 +217,7 @@ class AuthViewModel(private val repository: FirebaseRepository) : ViewModel() {
                     _userProfile.value = profile
                     if (profile != null) {
                         startObservingProfile(uid)
+                        Telemetry.logLogin("email")
                         onSuccess(profile.role)
                     } else {
                         onError("Profile not found")
@@ -229,6 +236,7 @@ class AuthViewModel(private val repository: FirebaseRepository) : ViewModel() {
         profileJob = null
         auth.signOut()
         _userProfile.value = null
+        Telemetry.clearUser()
         onComplete()
     }
 
