@@ -159,9 +159,6 @@ class AuthViewModel(private val repository: FirebaseRepository) : ViewModel() {
         businessHours: String = "",
         rfc: String = "",
         rnt: String = "",
-        checkIn: String = "",
-        checkOut: String = "",
-        meetingPoint: String = "",
         onSuccess: (String) -> Unit,
         onError: (String) -> Unit
     ) {
@@ -188,9 +185,6 @@ class AuthViewModel(private val repository: FirebaseRepository) : ViewModel() {
                         businessHours = businessHours,
                         rfc = rfc,
                         rnt = rnt,
-                        checkIn = checkIn,
-                        checkOut = checkOut,
-                        meetingPoint = meetingPoint,
                         status = if (role == "COMPANY") "PENDING" else "ACTIVE"
                     )
                     repository.saveUserProfile(profile)
@@ -279,6 +273,8 @@ class AuthViewModel(private val repository: FirebaseRepository) : ViewModel() {
         phone: String,
         whatsapp: String,
         businessLocation: String,
+        businessLat: Double = 0.0,
+        businessLng: Double = 0.0,
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
@@ -291,7 +287,10 @@ class AuthViewModel(private val repository: FirebaseRepository) : ViewModel() {
                     businessDescription = businessDescription,
                     phone = phone,
                     whatsapp = whatsapp,
-                    businessLocation = businessLocation
+                    businessLocation = businessLocation,
+                    // 0.0 = sin pin elegido: conservar el existente
+                    businessLat = if (businessLat != 0.0) businessLat else currentProfile.businessLat,
+                    businessLng = if (businessLng != 0.0) businessLng else currentProfile.businessLng
                 )
                 repository.saveUserProfile(updatedProfile)
                 _userProfile.value = updatedProfile

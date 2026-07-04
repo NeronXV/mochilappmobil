@@ -228,14 +228,18 @@ fun CompanyProfileTab(
             initialPhone = userProfile?.phone.orEmpty(),
             initialWhatsapp = userProfile?.whatsapp.orEmpty(),
             initialLocation = userProfile?.businessLocation.orEmpty(),
+            initialLat = userProfile?.businessLat ?: 0.0,
+            initialLng = userProfile?.businessLng ?: 0.0,
             isLoading = isLoading,
-            onSave = { name, description, phone, whatsapp, location ->
+            onSave = { name, description, phone, whatsapp, location, lat, lng ->
                 authViewModel.updateBusinessProfile(
                     name = name,
                     businessDescription = description,
                     phone = phone,
                     whatsapp = whatsapp,
                     businessLocation = location,
+                    businessLat = lat,
+                    businessLng = lng,
                     onSuccess = {
                         toast("Información actualizada")
                         showEditDialog = false
@@ -298,8 +302,10 @@ private fun BusinessInfoDialog(
     initialPhone: String,
     initialWhatsapp: String,
     initialLocation: String,
+    initialLat: Double,
+    initialLng: Double,
     isLoading: Boolean,
-    onSave: (name: String, description: String, phone: String, whatsapp: String, location: String) -> Unit,
+    onSave: (name: String, description: String, phone: String, whatsapp: String, location: String, lat: Double, lng: Double) -> Unit,
     onDismiss: () -> Unit
 ) {
     var name by remember { mutableStateOf(initialName) }
@@ -307,6 +313,11 @@ private fun BusinessInfoDialog(
     var phone by remember { mutableStateOf(initialPhone) }
     var whatsapp by remember { mutableStateOf(initialWhatsapp) }
     var location by remember { mutableStateOf(initialLocation) }
+    // Pin del negocio: antes solo se podía fijar en el registro; un pin mal
+    // puesto quedaba congelado para siempre y precargaba mal cada servicio
+    var lat by remember { mutableStateOf(initialLat) }
+    var lng by remember { mutableStateOf(initialLng) }
+    var showMapPicker by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -350,11 +361,24 @@ private fun BusinessInfoDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+                val hasPin = lat != 0.0 || lng != 0.0
+                OutlinedButton(
+                    onClick = { showMapPicker = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        if (hasPin) Icons.Default.CheckCircle else Icons.Default.Place,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (hasPin) "Ajustar pin en el mapa" else "Ubicar mi negocio en el mapa")
+                }
             }
         },
         confirmButton = {
             Button(
-                onClick = { onSave(name.trim(), description.trim(), phone.trim(), whatsapp.trim(), location.trim()) },
+                onClick = { onSave(name.trim(), description.trim(), phone.trim(), whatsapp.trim(), location.trim(), lat, lng) },
                 enabled = name.isNotBlank() && !isLoading
             ) {
                 if (isLoading) {
@@ -368,4 +392,18 @@ private fun BusinessInfoDialog(
             TextButton(onClick = onDismiss) { Text("Cancelar") }
         }
     )
+
+    if (showMapPicker) {
+        LocationPickerDialog(
+            initialLat = lat,
+            initialLng = lng,
+            title = "Ubica tu negocio",
+            hint = "Toca el mapa donde está tu negocio",
+            onPick = { newLat, newLng ->
+                lat = newLat
+                lng = newLng
+            },
+            onDismiss = { showMapPicker = false }
+        )
+    }
 }

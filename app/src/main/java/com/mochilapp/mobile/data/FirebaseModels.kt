@@ -30,9 +30,6 @@ data class UserFirestore(
     val rnt: String = "",
     val businessVerified: Boolean = false,
     val status: String = "PENDING",
-    val checkIn: String = "",
-    val checkOut: String = "",
-    val meetingPoint: String = "",
     val fcmToken: String = ""
 )
 
@@ -80,7 +77,8 @@ data class ServiceFirestore(
     val vehicleName: String = "",
     val driverName: String = "",
     val guideName: String = "",
-    val meetingPoint: String = "",
+    // El punto de encuentro es el pin (latitude/longitude); el campo de texto
+    // meetingPoint se retiró — 2 docs legado lo conservan en Firestore, ignorado
     val checkIn: String = "",
     val checkOut: String = "",
     val menu: List<MenuItemFirestore> = emptyList(),

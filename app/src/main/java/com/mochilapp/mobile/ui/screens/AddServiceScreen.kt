@@ -453,7 +453,7 @@ fun AddServiceScreen(
                             OutlinedTextField(
                                 value = draft.address,
                                 onValueChange = { viewModel.updateServiceDraft(draft.copy(address = it)) },
-                                label = { Text("Dirección o referencia exacta") },
+                                label = { Text("Dirección o referencia exacta (opcional)") },
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
                                 leadingIcon = { Icon(Icons.Default.Map, contentDescription = null, tint = Color.Gray) }
@@ -556,7 +556,6 @@ fun AddServiceScreen(
                             imageUrl = draft.existingImageUrl,
                             capacity = resolvedCapacity,
                             departureTimes = draft.departureTimes.split(",").map { it.trim() }.filter { it.isNotEmpty() },
-                            meetingPoint = draft.meetingPoint,
                             checkIn = draft.checkIn,
                             checkOut = draft.checkOut,
                             rooms = draft.rooms,

@@ -304,13 +304,6 @@ fun ServiceDetailScreen(
                                 }
                             }
                             
-                            if (s.meetingPoint.isNotEmpty()) {
-                                Column {
-                                    Text("Punto de encuentro:", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                                    Text(s.meetingPoint, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF1ABC9C), fontWeight = FontWeight.Bold)
-                                }
-                            }
-
                             if (s.latitude != 0.0 && s.longitude != 0.0) {
                                 Button(
                                     onClick = { 

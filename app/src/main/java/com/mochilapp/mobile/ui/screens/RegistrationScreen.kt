@@ -52,11 +52,6 @@ fun RegistrationScreen(
     var rfc by remember { mutableStateOf("") }
     var rnt by remember { mutableStateOf("") }
     var companyType by remember { mutableStateOf(CompanyType.HOTEL) }
-    
-    // Step Specific (Optional)
-    var checkIn by remember { mutableStateOf("") }
-    var checkOut by remember { mutableStateOf("") }
-    var meetingPoint by remember { mutableStateOf("") }
 
     var currentStep by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -297,37 +292,10 @@ fun RegistrationScreen(
                     }
                 }
                 
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                // Specific fields based on type
-                if (companyType == CompanyType.HOTEL || companyType == CompanyType.HOSTEL) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedTextField(
-                            value = checkIn,
-                            onValueChange = { checkIn = it },
-                            label = { Text("Check-in") },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                        OutlinedTextField(
-                            value = checkOut,
-                            onValueChange = { checkOut = it },
-                            label = { Text("Check-out") },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                    }
-                } else if (companyType == CompanyType.BOAT_TOUR || companyType == CompanyType.TOUR_AGENCY) {
-                    OutlinedTextField(
-                        value = meetingPoint,
-                        onValueChange = { meetingPoint = it },
-                        label = { Text("Punto de encuentro") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        leadingIcon = { Icon(Icons.Default.Place, contentDescription = null) }
-                    )
-                }
-                
+                // Los datos operativos (check-in/out, punto de encuentro) se
+                // capturan al publicar cada servicio, no en el registro: aquí
+                // se guardaban en el perfil y nada los leía después.
+
                 Spacer(modifier = Modifier.height(24.dp))
                 
                 Card(
@@ -397,9 +365,6 @@ fun RegistrationScreen(
                                 businessHours = businessHours,
                                 rfc = rfc,
                                 rnt = rnt,
-                                checkIn = checkIn,
-                                checkOut = checkOut,
-                                meetingPoint = meetingPoint,
                                 onSuccess = onRegistrationSuccess,
                                 onError = { error = it }
                             )

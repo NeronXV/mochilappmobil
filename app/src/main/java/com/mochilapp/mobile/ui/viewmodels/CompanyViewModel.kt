@@ -24,7 +24,6 @@ data class ServiceDraft(
     val imageUri: Uri? = null,
     val capacity: String = "",
     val departureTimes: String = "",
-    val meetingPoint: String = "",
     val checkIn: String = "",
     val checkOut: String = "",
     // Hospedaje: lista de habitaciones/camas configuradas (alimenta la distribución de planta)
@@ -226,7 +225,6 @@ class CompanyViewModel(
             type = runCatching { CompanyType.valueOf(service.type) }.getOrDefault(CompanyType.HOTEL),
             capacity = if (service.capacity > 0) service.capacity.toString() else "",
             departureTimes = service.departureTimes.joinToString(", "),
-            meetingPoint = service.meetingPoint,
             checkIn = service.checkIn,
             checkOut = service.checkOut,
             rooms = service.rooms,
