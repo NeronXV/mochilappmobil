@@ -1,6 +1,7 @@
 package com.mochilapp.mobile
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -15,7 +16,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import com.google.firebase.messaging.FirebaseMessaging
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.entryProvider
@@ -29,6 +37,10 @@ import com.mochilapp.mobile.ui.theme.LocalAppLanguage
 import com.mochilapp.mobile.ui.theme.MochilappTheme
 import com.mochilapp.mobile.ui.viewmodels.*
 
+// Preferencias locales de la app (por ahora solo el idioma elegido)
+private val Context.settingsDataStore by preferencesDataStore(name = "settings")
+private val LANGUAGE_KEY = stringPreferencesKey("app_language")
+
 class MainActivity : ComponentActivity() {
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -37,24 +49,36 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        
+
         askNotificationPermission()
-        
+
         // Suscribir a temas globales
         val messaging = FirebaseMessaging.getInstance()
         messaging.subscribeToTopic("promos")
         messaging.subscribeToTopic("feed_updates")
 
+        // Idioma persistido: antes se perdía al cerrar la app y volvía a
+        // español. Lectura síncrona única al arrancar (es un dato diminuto)
+        // para no parpadear en otro idioma.
+        val savedCode = runBlocking { settingsDataStore.data.first()[LANGUAGE_KEY] }
+        val initialLanguage = AppLanguage.entries.firstOrNull { it.code == savedCode }
+            ?: AppLanguage.ESPAÑOL
+
         setContent {
             // rememberSaveable: que el idioma sobreviva rotaciones y recreaciones
             var currentLanguage by androidx.compose.runtime.saveable.rememberSaveable {
-                mutableStateOf(AppLanguage.ESPAÑOL)
+                mutableStateOf(initialLanguage)
             }
             CompositionLocalProvider(LocalAppLanguage provides currentLanguage) {
                 MochilappTheme {
                     MochilappApp(
                         currentLanguage = currentLanguage,
-                        onLanguageChange = { currentLanguage = it }
+                        onLanguageChange = { newLang ->
+                            currentLanguage = newLang
+                            lifecycleScope.launch {
+                                settingsDataStore.edit { it[LANGUAGE_KEY] = newLang.code }
+                            }
+                        }
                     )
                 }
             }
