@@ -40,3 +40,11 @@
 
 # --- Stripe: referencias opcionales que no usamos (evita fallos de R8) ---
 -dontwarn com.stripe.android.pushProvisioning.**
+
+# --- Firebase: los ComponentRegistrar se instancian por reflexión con su
+# constructor sin argumentos. R8 (full mode) los eliminaba y componentes
+# enteros desaparecían en release (Crashlytics, Messaging, Installations...)
+# → NPE "FirebaseCrashlytics component is not present" al tocar Telemetry.
+-keep class * implements com.google.firebase.components.ComponentRegistrar {
+    <init>();
+}
