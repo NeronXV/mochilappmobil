@@ -147,6 +147,9 @@ fun BookingFlowScreen(
 
     LaunchedEffect(bookingResult) {
         bookingResult?.let { id ->
+            // Consumir ANTES de navegar: si queda pegado, la siguiente reserva
+            // salta directo al pago de esta (bug detectado en la sesión 12-jul)
+            bookingViewModel.clearBookingResult()
             onPaymentNavigate(id)
         }
     }

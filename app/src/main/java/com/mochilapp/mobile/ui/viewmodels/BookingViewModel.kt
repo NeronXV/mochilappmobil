@@ -25,6 +25,13 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
         _bookingError.value = null
     }
 
+    // Consumir el resultado tras navegar al pago: el ViewModel se comparte
+    // entre pantallas y, si el id queda pegado, el siguiente flujo de reserva
+    // catapulta al viajero a la pantalla de pago de la reserva ANTERIOR.
+    fun clearBookingResult() {
+        _bookingResult.value = null
+    }
+
     private val _selectedDate = MutableStateFlow("")
     private val _currentServiceId = MutableStateFlow("")
 

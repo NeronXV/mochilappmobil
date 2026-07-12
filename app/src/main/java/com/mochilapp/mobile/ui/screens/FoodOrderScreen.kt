@@ -65,7 +65,11 @@ fun FoodOrderScreen(
     }
 
     LaunchedEffect(bookingResult) {
-        if (submitting) bookingResult?.let { onPaymentNavigate(it) }
+        if (submitting) bookingResult?.let {
+            // Consumir antes de navegar (mismo fix que BookingFlow)
+            bookingViewModel.clearBookingResult()
+            onPaymentNavigate(it)
+        }
     }
 
     val products = remember(service) { resolveProducts(service) }
