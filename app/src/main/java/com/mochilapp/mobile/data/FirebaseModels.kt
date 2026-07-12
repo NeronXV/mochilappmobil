@@ -92,7 +92,13 @@ data class ServiceFirestore(
     // entrega para recoger o a domicilio. deliveryFee se suma cuando es domicilio.
     val offersPickup: Boolean = true,
     val offersDelivery: Boolean = false,
-    val deliveryFee: Double = 0.0
+    val deliveryFee: Double = 0.0,
+    // Modalidad de venta: "COLECTIVA" | "PRIVADA". Vacío = legado (colectiva).
+    // `pricing` es el map crudo de Firestore; usar pricingModel() para leerlo.
+    // El campo `price` queda deprecado como fuente de verdad (en privados
+    // guarda precioBase para que apps viejas muestren algo razonable).
+    val modalidad: String = "",
+    val pricing: Map<String, Any> = emptyMap()
 )
 
 // Línea de un pedido de puesto de comida: producto, cantidad y precio unitario.
@@ -139,7 +145,15 @@ data class BookingFirestore(
     val fulfillmentType: String = "",      // "PICKUP" | "DELIVERY"
     val deliveryAddress: String = "",
     val deliveryFee: Double = 0.0,
-    val orderStatus: String = ""           // "PREPARING" | "READY" | "DELIVERED"
+    val orderStatus: String = "",          // "PREPARING" | "READY" | "DELIVERED"
+    // Modalidad (spec privada/colectiva): el cliente la escribe al crear como
+    // marcador de que entiende la semántica; el servidor la confirma al pagar.
+    val modalidad: String = "",
+    // Personas de la reserva (en privada ≠ asientos). Legado: usar slots.
+    val personas: Int = 0,
+    // Monto autoritativo calculado y escrito SOLO por el servidor al crear
+    // el PaymentIntent. El cliente nunca lo escribe (reglas lo bloquean).
+    val montoTotal: Double = 0.0
 )
 
 // Ventana del hold: cuánto retiene cupo una reserva PENDING sin pagar
