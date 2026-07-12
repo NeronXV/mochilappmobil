@@ -171,6 +171,8 @@ Resoluciones acordadas al iniciar la implementación, para que quede versionado 
    - *Pedidos de comida:* al dejar de confiar en `totalPrice` del cliente, el servidor recalcula pedidos desde el menú vigente del servicio (match por nombre); si un producto ya no existe se rechaza con "el menú cambió, vuelve a crear el pedido".
    - *Sobreventa colectiva:* la misma transacción de disponibilidad valida aforo en colectivas de salida única (cierra la carrera de sobreventa del roadmap en el punto donde hay dinero). Hospedaje por rango de noches queda fuera de la validación server-side en v1.
    - `createPaymentIntent` deja de confiar en `booking.totalPrice` (que escribía el cliente al crear la reserva): cierra el hueco residual del endurecimiento de pagos de julio 2026.
+   - *Desviación del §6:* el cliente SÍ escribe `modalidad` al CREAR la reserva — es el marcador de que la app entiende la semántica privada (sin él, el servidor no podría distinguir apps viejas y el rechazo de la decisión 1 no funcionaría). Lo que el cliente nunca escribe: `montoTotal` y `salidaClaimedAt`; y el servidor sobreescribe `modalidad` con el valor real del servicio al calcular el pago.
+   - *Regla anti retro-fechado:* en la creación de reservas, `createdAt` debe estar presente y dentro de ±10 min de `request.time` — el desempate entre PENDINGs no puede ganarse con un reloj manipulado, y de paso se cierra el hueco de reservas sin `createdAt` que nunca expiraban (holdsSeats las trataba como bloqueantes permanentes y el cron las ignoraba). Además `status` debe nacer `PENDING` (antes se podía CREAR una reserva directamente en PAID; el endurecimiento previo solo cubría updates).
 
 ## 13. Criterios de aceptación (smoke test antes de distribuir)
 
