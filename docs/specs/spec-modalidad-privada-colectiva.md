@@ -174,6 +174,20 @@ Resoluciones acordadas al iniciar la implementación, para que quede versionado 
    - *Desviación del §6:* el cliente SÍ escribe `modalidad` al CREAR la reserva — es el marcador de que la app entiende la semántica privada (sin él, el servidor no podría distinguir apps viejas y el rechazo de la decisión 1 no funcionaría). Lo que el cliente nunca escribe: `montoTotal` y `salidaClaimedAt`; y el servidor sobreescribe `modalidad` con el valor real del servicio al calcular el pago.
    - *Regla anti retro-fechado:* en la creación de reservas, `createdAt` debe estar presente y dentro de ±10 min de `request.time` — el desempate entre PENDINGs no puede ganarse con un reloj manipulado, y de paso se cierra el hueco de reservas sin `createdAt` que nunca expiraban (holdsSeats las trataba como bloqueantes permanentes y el cron las ignoraba). Además `status` debe nacer `PENDING` (antes se podía CREAR una reserva directamente en PAID; el endurecimiento previo solo cubría updates).
 
+### 12.8 Bitácora de despliegue (sesión 2026-07-12)
+
+Ejecutado en el orden del §10.3, todo verificado en producción:
+
+1. **Functions desplegadas** (las 13, incl. `createPaymentIntent` con pricing server-side; 26 tests en verde pre-deploy).
+2. **Pago colectivo verificado**: reserva con promo → el servidor recalculó $2,400 → $1,200 (50%), escribió `montoTotal`/`modalidad`/`personas`/`promoId` y Stripe cobró exacto. Evidencia permanente: PaymentIntent `pi_3TsVzFBZsUaexFzP0u6sHfzf` (metadata `promoCode: FLASH-F178`, `discountAmount: 1200`). Push al dueño: recibido. **Ruta de promo server-side: verificada.**
+3. **Reglas Fase 2 desplegadas** + fix en caliente (`e8c4d30`): la regla original prohibía la LLAVE `montoTotal` con `hasAny`, pero el modelo Kotlin nuevo serializa `montoTotal=0` por defecto en cada create → toda reserva de la app nueva era rechazada con PERMISSION_DENIED. Fix: `salidaClaimedAt` prohibido y `montoTotal` solo puede nacer en 0. Verificado con la **Rules Test API** (6 casos: app vieja ALLOW, app nueva ALLOW, y DENY para monto inventado, claim de cliente, nacer PAID y createdAt retro-fechado −1h).
+4. **Segundo pago con reglas activas**: creación pasó la validación de `createdAt` (±10 min) sin fricción; `montoTotal: 3600` = 3 × $1,200 server-side. Circuito completo OK.
+5. **Backfill ejecutado**: 5/5 servicios migrados a COLECTIVA (dry-run revisado antes); re-run confirmó idempotencia (5 saltados, 0 modificados).
+6. **Bug colateral encontrado y corregido** (`2d8af1b`, app): `bookingResult` nunca se limpiaba tras navegar al pago; el segundo flujo de reserva de la sesión catapultaba a la pantalla de pago de la reserva anterior. El servidor rechazó el recobro ("ya está pagada") — el dinero nunca corrió riesgo.
+7. **Limpieza**: reservas de prueba marcadas CANCELLED con `cancelReason: TEST_CLEANUP_2026-07-12`. (Lección operativa: cancelar, no borrar — los docs borrados durante el diagnóstico costaron evidencia forense.)
+
+**Pendiente antes de distribuir el APK**: smoke test §13 completo (caso Mario privado de punta a punta + carrera de dos dispositivos).
+
 ## 13. Criterios de aceptación (smoke test antes de distribuir)
 
 1. Crear servicio privado con tarifa base $8,400 / 6 incluidas / $1,200 extra / máx 20. Verificar preview de precio en formulario.
