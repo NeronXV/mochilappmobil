@@ -17,7 +17,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mochilapp.mobile.data.ServiceFirestore
+import com.mochilapp.mobile.data.Pricing
+import com.mochilapp.mobile.data.esPrivado
 import com.mochilapp.mobile.data.holdsSeats
+import com.mochilapp.mobile.data.pricingModel
 import com.mochilapp.mobile.ui.theme.t
 import com.mochilapp.mobile.ui.viewmodels.BookingViewModel
 import com.mochilapp.mobile.ui.viewmodels.MarketplaceViewModel
@@ -78,9 +81,14 @@ fun BookingFlowScreen(
     val bookingsByDate by bookingViewModel.currentBookings.collectAsState()
     val serviceBookings by bookingViewModel.serviceBookings.collectAsState()
 
+    // Modalidad de venta: en PRIVADA se reserva la unidad completa y una sola
+    // reserva activa bloquea la salida entera (spec privada/colectiva §4)
+    val pricing = service?.pricingModel()
+    val esPrivado = service?.esPrivado == true
+
     // Disponibilidad real para evitar sobreventa. capacity ya es el aforo total
     // (en hospedaje = camas configuradas). Si no hay aforo definido (0), no se bloquea.
-    val capacity = service?.capacity ?: 0
+    val capacity = pricing?.capacidadMaxima ?: (service?.capacity ?: 0)
     // Solo cuentan las reservas que retienen cupo: las PENDING abandonadas
     // liberan su lugar al expirar el hold (holdsSeats)
     val usedSlots = when {
@@ -101,8 +109,19 @@ fun BookingFlowScreen(
         else -> 0
     }
     val remainingSlots = capacity - usedSlots
+
+    // Privada: la salida (fecha + horario) está tomada si CUALQUIER reserva
+    // activa la retiene, sin importar cuántas personas incluya
+    val salidaOcupada = esPrivado && dateSelected && bookingsByDate
+        .filter { it.holdsSeats() }
+        .any {
+            if (service?.departureTimes?.isNotEmpty() == true) it.departureTime == selectedTime
+            else true
+        }
+
     // Solo bloquea cuando hay aforo definido, fechas elegidas y no alcanza
-    val capacityBlocks = capacity > 0 && dateSelected && remainingSlots < slots
+    val capacityBlocks = if (esPrivado) salidaOcupada
+                         else capacity > 0 && dateSelected && remainingSlots < slots
 
     val bookingResult by bookingViewModel.bookingResult.collectAsState()
     val bookingError by bookingViewModel.bookingError.collectAsState()
@@ -198,16 +217,22 @@ fun BookingFlowScreen(
                     ) {
                         Column {
                             Text(t("people"), fontWeight = FontWeight.Bold)
-                            Text("Indica cuántas personas irán", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                            Text(
+                                if (esPrivado) "Reservas el servicio completo para tu grupo"
+                                else "Indica cuántas personas irán",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (esPrivado) Color(0xFF1D8348) else Color.Gray
+                            )
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { if (slots > 1) slots-- }) {
                                 Icon(Icons.Default.RemoveCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             }
                             Text(slots.toString(), fontWeight = FontWeight.Black, fontSize = 20.sp, modifier = Modifier.padding(horizontal = 8.dp))
-                            // Con aforo definido y fecha elegida, no dejar pedir más
-                            // lugares de los que quedan
-                            val canAddMore = capacity <= 0 || !dateSelected || slots < remainingSlots
+                            // Privada: tope = capacidad máxima del grupo (la unidad es
+                            // tuya). Colectiva: no pedir más lugares de los que quedan
+                            val canAddMore = if (esPrivado) capacity <= 0 || slots < capacity
+                                             else capacity <= 0 || !dateSelected || slots < remainingSlots
                             IconButton(onClick = { if (canAddMore) slots++ }, enabled = canAddMore) {
                                 Icon(Icons.Default.AddCircle, contentDescription = null, tint = if (canAddMore) MaterialTheme.colorScheme.primary else Color.LightGray)
                             }
@@ -278,13 +303,15 @@ fun BookingFlowScreen(
                                 ) {
                                     s.departureTimes.forEach { time ->
                                         val isSelected = selectedTime == time
-                                        // Cupos restantes de ESTE horario (estilo GetYourGuide)
-                                        val timeUsed = if (dateSelected) bookingsByDate
-                                            .filter { it.holdsSeats() && it.departureTime == time }
-                                            .sumOf { it.slots } else 0
-                                        val timeRemaining = s.capacity - timeUsed
-                                        val showAvailability = s.capacity > 0 && dateSelected
-                                        val isFull = showAvailability && timeRemaining <= 0
+                                        val activasEnHorario = if (dateSelected) bookingsByDate
+                                            .filter { it.holdsSeats() && it.departureTime == time } else emptyList()
+                                        // Privada: una sola reserva activa toma la salida
+                                        // completa. Colectiva: cupos restantes del horario
+                                        val timeUsed = activasEnHorario.sumOf { it.slots }
+                                        val timeRemaining = capacity - timeUsed
+                                        val showAvailability = dateSelected && (esPrivado || capacity > 0)
+                                        val isFull = if (esPrivado) dateSelected && activasEnHorario.isNotEmpty()
+                                                     else showAvailability && timeRemaining <= 0
                                         FilterChip(
                                             selected = isSelected,
                                             enabled = !isFull,
@@ -297,9 +324,13 @@ fun BookingFlowScreen(
                                                     Text(time, fontWeight = FontWeight.Bold)
                                                     if (showAvailability) {
                                                         Text(
-                                                            if (isFull) "Lleno"
-                                                            else if (timeRemaining == 1) "Queda 1"
-                                                            else "Quedan $timeRemaining",
+                                                            when {
+                                                                esPrivado && isFull -> "Reservado"
+                                                                esPrivado -> "Disponible"
+                                                                isFull -> "Lleno"
+                                                                timeRemaining == 1 -> "Queda 1"
+                                                                else -> "Quedan $timeRemaining"
+                                                            },
                                                             fontSize = 10.sp
                                                         )
                                                     }
@@ -316,10 +347,30 @@ fun BookingFlowScreen(
                         }
                     }
 
+                    // Privada: estado de la salida completa (libre u ocupada)
+                    if (esPrivado && dateSelected) {
+                        HorizontalDivider(color = Color(0xFFF1F3F5))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Info,
+                                contentDescription = null,
+                                tint = if (salidaOcupada) Color.Red else Color(0xFF2ECC71),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = if (salidaOcupada) "Esta salida ya fue reservada por otro viajero"
+                                       else "Esta salida está libre para tu grupo",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (salidaOcupada) Color.Red else Color.Gray
+                            )
+                        }
+                    }
+
                     // Availability Info (hospedaje y resto): se muestra cuando hay
                     // aforo definido y fechas elegidas. En hospedaje refleja las
                     // plazas libres en el rango de noches solicitado.
-                    if (capacity > 0 && dateSelected) {
+                    if (!esPrivado && capacity > 0 && dateSelected) {
                         val available = remainingSlots.coerceAtLeast(0)
                         val enough = remainingSlots >= slots
                         val unitWord = if (isLodging) "plazas" else "cupos"
@@ -340,9 +391,10 @@ fun BookingFlowScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Hospedaje cobra por noche; el resto, por persona/cupo
-            val priceUnits = if (isLodging) nights else slots
-            val originalTotal = (service?.price ?: 0.0) * priceUnits
+            // Total con la misma fórmula que el servidor (Pricing es espejo de
+            // functions/pricing.js). Esto es solo display: el cobro real lo
+            // calcula createPaymentIntent leyendo el servicio de Firestore.
+            val originalTotal = pricing?.calcularTotal(slots, if (isLodging) nights else 0) ?: 0.0
             val discountPercent = if (activePromo?.serviceId == serviceId) activePromo?.discountPercent ?: 0 else 0
             val discountAmount = originalTotal * (discountPercent.toDouble() / 100.0)
             val totalPrice = originalTotal - discountAmount
@@ -373,9 +425,26 @@ fun BookingFlowScreen(
                                 color = if (discountAmount > 0) Color(0xFF2ECC71) else MaterialTheme.colorScheme.primary
                             )
                         )
-                        if (isLodging && nights > 0) {
+                        if (!esPrivado && isLodging && nights > 0) {
                             Text(
                                 "${formatMxn(service?.price ?: 0.0)} × $nights ${if (nights == 1) "noche" else "noches"}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.Gray
+                            )
+                        }
+                        // Desglose privado: el viajero ve de dónde sale el total (§8.2)
+                        (pricing as? Pricing.Privada)?.let { p ->
+                            val extras = maxOf(0, slots - p.personasIncluidas)
+                            Text(
+                                buildString {
+                                    if (extras > 0) {
+                                        append("Base (hasta ${p.personasIncluidas}): ${formatMxn(p.precioBase)} + ")
+                                        append("$extras × ${formatMxn(p.precioPersonaExtra)}")
+                                    } else {
+                                        append("Servicio completo (hasta ${p.personasIncluidas} personas)")
+                                    }
+                                    if (isLodging && nights > 1) append(" × $nights noches")
+                                },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color.Gray
                             )
@@ -399,7 +468,8 @@ fun BookingFlowScreen(
                                     promoCode = if (discountAmount > 0) activePromo?.promoCode ?: "" else "",
                                     discountPercent = discountPercent,
                                     discountAmount = discountAmount,
-                                    originalTotal = originalTotal
+                                    originalTotal = originalTotal,
+                                    modalidad = if (esPrivado) "PRIVADA" else "COLECTIVA"
                                 )
                             }
                         },

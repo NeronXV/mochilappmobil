@@ -22,8 +22,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.mochilapp.mobile.data.Pricing
 import com.mochilapp.mobile.data.ServiceFirestore
 import com.mochilapp.mobile.data.UserFirestore
+import com.mochilapp.mobile.data.esPrivado
+import com.mochilapp.mobile.data.pricingModel
 import com.mochilapp.mobile.ui.theme.serviceTypeLabel
 import com.mochilapp.mobile.ui.theme.t
 import com.mochilapp.mobile.ui.viewmodels.MarketplaceViewModel
@@ -79,7 +82,8 @@ fun ServiceDetailScreen(
                         val isFoodStand = s.type == "FOOD_STAND"
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                if (isFoodStand) "Desde" else t("total_price"),
+                                // Privado: la tarifa base es "desde" (crece con extras)
+                                if (isFoodStand || s.esPrivado) "Desde" else t("total_price"),
                                 style = MaterialTheme.typography.labelSmall, color = Color.Gray
                             )
                             Text(
@@ -89,6 +93,16 @@ fun ServiceDetailScreen(
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             )
+                            if (s.esPrivado) {
+                                val p = s.pricingModel() as? Pricing.Privada
+                                Text(
+                                    if (p != null) "Servicio completo, hasta ${p.personasIncluidas} personas incluidas"
+                                    else "Servicio completo para tu grupo",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFF1D8348),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                         Button(
                             onClick = { if (isFoodStand) onOrderClick(s.id) else onBookClick(s.id) },

@@ -76,7 +76,10 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
         promoCode: String = "",
         discountPercent: Int = 0,
         discountAmount: Double = 0.0,
-        originalTotal: Double = 0.0
+        originalTotal: Double = 0.0,
+        // "PRIVADA" | "COLECTIVA": marcador de que esta app entiende la
+        // semántica; el servidor lo confirma y calcula el cobro real
+        modalidad: String = "COLECTIVA"
     ) {
         // Las fechas se guardan como yyyy-MM-dd, así que la comparación de strings es cronológica
         val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
@@ -102,6 +105,8 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
                 date = date,
                 checkOutDate = checkOutDate,
                 slots = slots,
+                personas = slots,
+                modalidad = modalidad,
                 totalPrice = totalPrice,
                 status = "PENDING",
                 ownerEmail = ownerEmail,

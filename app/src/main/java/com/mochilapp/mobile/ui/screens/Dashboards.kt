@@ -38,6 +38,7 @@ import com.mochilapp.mobile.R
 import com.mochilapp.mobile.data.CompanyType
 import com.mochilapp.mobile.data.ServiceFirestore
 import com.mochilapp.mobile.data.UserFirestore
+import com.mochilapp.mobile.data.esPrivado
 import com.mochilapp.mobile.ui.theme.t
 import com.mochilapp.mobile.ui.viewmodels.AuthViewModel
 import com.mochilapp.mobile.ui.viewmodels.CompanyViewModel
@@ -1215,7 +1216,9 @@ fun PremiumServiceCard(
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Text(
-                                formatMxn(service.price),
+                                // Privado: la tarifa base es "desde" (badge en la tarjeta)
+                                if (service.esPrivado) "Desde ${formatMxn(service.price)}"
+                                else formatMxn(service.price),
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                                 color = Color.White,
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black)
@@ -1224,6 +1227,18 @@ fun PremiumServiceCard(
                     }
                     Spacer(Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (service.esPrivado) {
+                            Surface(color = Color(0xFF1D8348), shape = RoundedCornerShape(8.dp)) {
+                                Text(
+                                    "PRIVADO",
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                        }
                         if (service.reviewCount > 0) {
                             Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFFFD43B), modifier = Modifier.size(18.dp))
                             Text(
