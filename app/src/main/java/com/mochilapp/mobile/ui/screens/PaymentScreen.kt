@@ -204,13 +204,22 @@ fun PaymentScreen(
                         isProcessing = true
                         errorMessage = null
                         scope.launch {
-                            val result = viewModel.createPaymentIntent(bookingId)
-                            val clientSecret = result?.get("clientSecret") as? String
-                            if (clientSecret != null) {
-                                paymentSheet.presentWithPaymentIntent(clientSecret)
-                            } else {
+                            try {
+                                val result = viewModel.createPaymentIntent(bookingId)
+                                val clientSecret = result?.get("clientSecret") as? String
+                                if (clientSecret != null) {
+                                    paymentSheet.presentWithPaymentIntent(clientSecret)
+                                } else {
+                                    isProcessing = false
+                                    errorMessage = "No se pudo conectar con el servidor de pagos."
+                                }
+                            } catch (e: Exception) {
                                 isProcessing = false
-                                errorMessage = "No se pudo conectar con el servidor de pagos."
+                                // Mensaje accionable del servidor (salida reservada,
+                                // cupo lleno, menú cambiado...) tal cual llegó
+                                errorMessage = (e as? com.google.firebase.functions.FirebaseFunctionsException)
+                                    ?.message
+                                    ?: "No se pudo conectar con el servidor de pagos."
                             }
                         }
                     }

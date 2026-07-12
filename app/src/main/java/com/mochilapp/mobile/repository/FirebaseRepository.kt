@@ -622,18 +622,21 @@ class FirebaseRepository {
     }
 
     // --- Stripe Payments ---
+    // Propaga la excepción: el servidor manda mensajes accionables (salida ya
+    // reservada, cupo insuficiente, menú cambiado...) que la UI debe mostrar
+    // tal cual, no como error genérico.
     suspend fun createPaymentIntent(data: Map<String, Any?>): Map<String, Any>? {
-        return try {
+        try {
             val result = functions
                 .getHttpsCallable("createPaymentIntent")
                 .call(data)
                 .await()
-            
+
             @Suppress("UNCHECKED_CAST")
-            result.getData() as Map<String, Any>?
+            return result.getData() as Map<String, Any>?
         } catch (e: Exception) {
             Log.e(TAG, "Error calling createPaymentIntent", e)
-            null
+            throw e
         }
     }
 

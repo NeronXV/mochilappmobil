@@ -3,6 +3,7 @@ const admin = require("firebase-admin");
 admin.initializeApp();
 
 const stripe = require("stripe");
+const pricing = require("./pricing");
 
 /**
  * Callable function to create a Stripe PaymentIntent for Mochilapp.
@@ -64,12 +65,160 @@ exports.createPaymentIntent = functions
     );
   }
 
-  // 4. Server-side amount, in cents
-  const amount = Math.round(Number(booking.totalPrice) * 100);
+  // 4. Server-side amount: SIEMPRE recalculado desde el servicio (pricing.js).
+  // El totalPrice que escribió el cliente al crear la reserva no se usa.
+  const serviceSnap = await admin.firestore()
+      .collection("services").doc(booking.serviceId || "").get();
+  if (!serviceSnap.exists) {
+    throw new functions.https.HttpsError(
+        "not-found",
+        "El servicio de esta reserva ya no existe."
+    );
+  }
+  const service = serviceSnap.data();
+  const db = admin.firestore();
+  const now = Date.now();
+
+  const esPedidoComida = Array.isArray(booking.orderItems) &&
+      booking.orderItems.length > 0;
+  const personas = Number(booking.personas) || Number(booking.slots) || 1;
+  const numNoches = pricing.noches(booking.date, booking.checkOutDate);
+
+  let servicePricing = null;
+  let originalTotal;
+  if (esPedidoComida) {
+    // Pedido de puesto de comida: el precio sale del menú actual del servicio
+    try {
+      originalTotal = pricing.calcularTotalPedido(
+          service, booking.orderItems, booking.fulfillmentType);
+    } catch (error) {
+      throw new functions.https.HttpsError(
+          "failed-precondition",
+          "El menú del puesto cambió desde que creaste el pedido. " +
+          "Vuelve a crearlo para ver los precios vigentes."
+      );
+    }
+  } else {
+    try {
+      servicePricing = pricing.resolverPricing(service);
+    } catch (error) {
+      throw new functions.https.HttpsError(
+          "failed-precondition",
+          "El servicio tiene una configuración de precio inválida. " +
+          "Contacta al prestador."
+      );
+    }
+
+    // App vieja intentando pagar un servicio privado como si fuera colectivo:
+    // se rechaza aquí (seguridad server-side; la prueba cerrada se actualiza)
+    if (servicePricing.modalidad === "PRIVADA" && booking.modalidad !== "PRIVADA") {
+      throw new functions.https.HttpsError(
+          "failed-precondition",
+          "Este servicio se reserva completo para tu grupo. " +
+          "Actualiza Mochilapp para poder reservarlo."
+      );
+    }
+
+    if (servicePricing.capacidadMaxima > 0 &&
+        personas > servicePricing.capacidadMaxima) {
+      throw new functions.https.HttpsError(
+          "failed-precondition",
+          `Este servicio admite máximo ${servicePricing.capacidadMaxima} personas.`
+      );
+    }
+
+    originalTotal = pricing.calcularTotal(servicePricing, personas, numNoches);
+  }
+
+  // 5. Promo server-side: solo porcentaje simple, validada contra su doc
+  let descuento = 0;
+  let promoAplicadaId = "";
+  if (booking.promoId) {
+    const promoSnap = await db.collection("promos").doc(booking.promoId).get();
+    if (promoSnap.exists) {
+      const promo = promoSnap.data();
+      const promoActiva = promo.isActive !== undefined ? promo.isActive : promo.active;
+      const expira = promo.expiresAt > 0 ? promo.expiresAt :
+          (Number(promo.timestamp) || 0) + 24 * 60 * 60 * 1000;
+      if (promoActiva && expira > now && promo.discountPercent > 0) {
+        const res = pricing.aplicarDescuento(originalTotal, promo.discountPercent);
+        descuento = res.descuento;
+        promoAplicadaId = booking.promoId;
+      }
+    }
+    // Promo inexistente/vencida: se cobra el total completo, sin error
+  }
+  const montoTotal = pricing.redondear(originalTotal - descuento);
+  const amount = Math.round(montoTotal * 100); // centavos
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new functions.https.HttpsError(
         "failed-precondition",
         "La reserva tiene un total inválido."
+    );
+  }
+
+  // 6. Disponibilidad + escritura autoritativa, en transacción.
+  // PRIVADA: la salida completa debe estar libre; el claim (sello de servidor)
+  // desempata a dos viajeros compitiendo. COLECTIVA con aforo: no sobrevender.
+  const bookingRef = db.collection("bookings").doc(bookingId);
+  try {
+    await db.runTransaction(async (tx) => {
+      const salidaQuery = db.collection("bookings")
+          .where("serviceId", "==", booking.serviceId)
+          .where("date", "==", booking.date || "");
+      const salidaSnap = await tx.get(salidaQuery);
+      const otras = salidaSnap.docs
+          .filter((d) => d.id !== bookingId)
+          .map((d) => ({id: d.id, data: d.data()}))
+          .filter((o) => (o.data.departureTime || "") === (booking.departureTime || ""));
+
+      if (servicePricing && servicePricing.modalidad === "PRIVADA") {
+        const mia = {id: bookingId, data: booking};
+        const bloqueada = otras.some((o) =>
+          pricing.bloqueaSalidaPrivada(o, mia, now));
+        if (bloqueada) {
+          throw new functions.https.HttpsError(
+              "failed-precondition",
+              "Esta salida ya fue reservada por otro viajero. " +
+              "Elige otro horario o fecha."
+          );
+        }
+      } else if (servicePricing && servicePricing.capacidadMaxima > 0 &&
+          numNoches === 0) {
+        // Colectiva de salida única (hospedaje por rangos queda fuera v1)
+        const ocupados = otras
+            .filter((o) => pricing.retieneCupo(o.data, now))
+            .reduce((sum, o) =>
+              sum + (Number(o.data.personas) || Number(o.data.slots) || 1), 0);
+        if (ocupados + personas > servicePricing.capacidadMaxima) {
+          throw new functions.https.HttpsError(
+              "failed-precondition",
+              "Ya no hay lugares suficientes para esta salida."
+          );
+        }
+      }
+
+      const updates = {
+        montoTotal: montoTotal,
+        totalPrice: montoTotal, // compat: tickets/KPIs actuales leen totalPrice
+        originalTotal: pricing.redondear(originalTotal),
+        discountAmount: descuento,
+        promoId: promoAplicadaId,
+        personas: personas,
+        modalidad: servicePricing ? servicePricing.modalidad : "COLECTIVA",
+      };
+      if (servicePricing && servicePricing.modalidad === "PRIVADA") {
+        // Sello del servidor: desempate inmune al reloj del cliente
+        updates.salidaClaimedAt = admin.firestore.FieldValue.serverTimestamp();
+      }
+      tx.update(bookingRef, updates);
+    });
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    console.error("Error en transacción de disponibilidad:", error);
+    throw new functions.https.HttpsError(
+        "internal",
+        "No se pudo verificar la disponibilidad. Intenta de nuevo."
     );
   }
 
@@ -89,8 +238,10 @@ exports.createPaymentIntent = functions
         serviceId: booking.serviceId || "N/A",
         ownerEmail: booking.ownerEmail || "N/A",
         travelerEmail: booking.travelerEmail || "N/A",
-        promoCode: booking.promoCode || "NONE",
-        discountAmount: String(booking.discountAmount || 0),
+        promoCode: promoAplicadaId ? (booking.promoCode || "NONE") : "NONE",
+        discountAmount: String(descuento),
+        modalidad: servicePricing ? servicePricing.modalidad : "N/A",
+        personas: String(personas),
       },
     });
 
