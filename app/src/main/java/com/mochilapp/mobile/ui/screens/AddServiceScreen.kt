@@ -34,9 +34,12 @@ import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberMarkerState
 import com.mochilapp.mobile.data.CompanyType
+import com.mochilapp.mobile.data.Pricing
 import com.mochilapp.mobile.data.RoomFirestore
 import com.mochilapp.mobile.data.ServiceFirestore
+import com.mochilapp.mobile.data.holdsSeats
 import com.mochilapp.mobile.ui.viewmodels.CompanyViewModel
+import kotlinx.coroutines.launch
 
 // Tipos donde el punto de encuentro puede diferir de la dirección del negocio
 private val meetingPointTypes = listOf(CompanyType.BOAT_TOUR, CompanyType.TOUR_AGENCY, CompanyType.TRANSPORT)
@@ -59,8 +62,18 @@ fun AddServiceScreen(
     val selectedLng by viewModel.selectedLng.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val serviceError by viewModel.serviceError.collectAsState()
+    val myBookings by viewModel.myBookings.collectAsState()
     val scrollState = rememberScrollState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
+    // Modalidad de venta (no aplica a puestos de comida: cobran por pedido)
+    val esPrivada = draft.type != CompanyType.FOOD_STAND && draft.modalidad == "PRIVADA"
+    // Con reservas activas no se cambia la modalidad: rompería la semántica
+    // de inventario (asientos vs unidad completa) de reservas ya vendidas
+    val modalidadBloqueada = draft.editingServiceId != null && myBookings.any {
+        it.serviceId == draft.editingServiceId && it.holdsSeats()
+    }
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -186,16 +199,33 @@ fun AddServiceScreen(
                             shape = RoundedCornerShape(12.dp)
                         )
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            OutlinedTextField(
-                                value = draft.price,
-                                onValueChange = { viewModel.updateServiceDraft(draft.copy(price = it)) },
-                                label = { Text("Precio MXN") },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null, tint = Color(0xFF2E7D32)) }
+                        if (draft.type != CompanyType.FOOD_STAND) {
+                            ModalidadSelector(
+                                modalidad = draft.modalidad,
+                                locked = modalidadBloqueada,
+                                onSelect = { viewModel.updateServiceDraft(draft.copy(modalidad = it)) }
                             )
+                            if (modalidadBloqueada) {
+                                Text(
+                                    "La modalidad no se puede cambiar: este servicio tiene reservas activas.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFFB9770E)
+                                )
+                            }
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            if (!esPrivada) {
+                                OutlinedTextField(
+                                    value = draft.price,
+                                    onValueChange = { viewModel.updateServiceDraft(draft.copy(price = it)) },
+                                    label = { Text(if (draft.type == CompanyType.FOOD_STAND) "Precio MXN" else "Precio por persona MXN") },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null, tint = Color(0xFF2E7D32)) }
+                                )
+                            }
 
                             var expanded by remember { mutableStateOf(false) }
                             Box(modifier = Modifier.weight(1.2f)) {
@@ -225,6 +255,14 @@ fun AddServiceScreen(
                                 }
                             }
                         }
+
+                        if (esPrivada) {
+                            CamposPrecioPrivado(
+                                draft = draft,
+                                isLodging = draft.type in listOf(CompanyType.HOTEL, CompanyType.HOSTEL, CompanyType.PROPERTY_RENTAL),
+                                onDraftChange = { viewModel.updateServiceDraft(it) }
+                            )
+                        }
                     }
                 }
 
@@ -250,7 +288,8 @@ fun AddServiceScreen(
 
                             // Capacity (transporte/tours). En hospedaje la capacidad se
                             // deriva de las habitaciones/camas configuradas más abajo.
-                            if (draft.type in listOf(CompanyType.BOAT_TOUR, CompanyType.TOUR_AGENCY, CompanyType.TRANSPORT)) {
+                            // En privada se captura junto a la tarifa (arriba).
+                            if (!esPrivada && draft.type in listOf(CompanyType.BOAT_TOUR, CompanyType.TOUR_AGENCY, CompanyType.TRANSPORT)) {
                                 OutlinedTextField(
                                     value = draft.capacity,
                                     onValueChange = { if (it.all { char -> char.isDigit() }) viewModel.updateServiceDraft(draft.copy(capacity = it)) },
@@ -547,10 +586,44 @@ fun AddServiceScreen(
                             draft.rooms.sumOf { it.capacity.coerceAtLeast(0) }
                         else
                             draft.capacity.toIntOrNull() ?: 0
+
+                        val precioBase = draft.precioBase.toDoubleOrNull() ?: 0.0
+                        val personasIncluidas = draft.personasIncluidas.toIntOrNull() ?: 0
+                        val precioPersonaExtra = draft.precioPersonaExtra.toDoubleOrNull() ?: 0.0
+                        val precioColectivo = draft.price.toDoubleOrNull() ?: 0.0
+
+                        // Validación local; las reglas de Firestore la repiten server-side
+                        val validationError = when {
+                            esPrivada && (precioBase <= 0 || personasIncluidas <= 0) ->
+                                "En modalidad privada, la tarifa base y las personas incluidas son obligatorias."
+                            esPrivada && resolvedCapacity < personasIncluidas ->
+                                "La capacidad máxima debe ser mayor o igual a las personas incluidas."
+                            !esPrivada && precioColectivo <= 0 ->
+                                "El precio debe ser mayor a 0."
+                            else -> null
+                        }
+                        if (validationError != null) {
+                            scope.launch { snackbarHostState.showSnackbar(validationError) }
+                            return@Button
+                        }
+
+                        val pricingMap: Map<String, Any> = if (esPrivada) mapOf(
+                            "precioBase" to precioBase,
+                            "personasIncluidas" to personasIncluidas,
+                            "precioPersonaExtra" to precioPersonaExtra,
+                            "capacidadMaxima" to resolvedCapacity
+                        ) else mapOf(
+                            "precioPorPersona" to precioColectivo,
+                            "capacidadMaxima" to resolvedCapacity
+                        )
                         val service = ServiceFirestore(
                             name = draft.name,
                             description = draft.description,
-                            price = draft.price.toDoubleOrNull() ?: 0.0,
+                            // price legado: en privada guarda la tarifa base para que
+                            // las apps viejas muestren un monto razonable (decisión §12.4)
+                            price = if (esPrivada) precioBase else precioColectivo,
+                            modalidad = if (esPrivada) "PRIVADA" else "COLECTIVA",
+                            pricing = pricingMap,
                             type = draft.type.name,
                             location = draft.location,
                             imageUrl = draft.existingImageUrl,
@@ -593,13 +666,176 @@ fun AddServiceScreen(
                         .height(56.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                    enabled = draft.name.isNotBlank() && draft.price.isNotBlank() && !isLoading
+                    enabled = draft.name.isNotBlank() && !isLoading &&
+                        (if (esPrivada) draft.precioBase.isNotBlank() else draft.price.isNotBlank())
                 ) {
                     if (isLoading) {
                         CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                     } else {
                         Text(if (isEditing) "Guardar Cambios" else "Publicar Ahora", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     }
+                }
+            }
+        }
+    }
+}
+
+// Selector de modalidad de venta (spec privada/colectiva §7.1): dos tarjetas
+// con descripción corta. Bloqueado si el servicio ya tiene reservas activas.
+@Composable
+private fun ModalidadSelector(
+    modalidad: String,
+    locked: Boolean,
+    onSelect: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            "¿Cómo se vende?",
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+            color = Color(0xFF106154)
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ModalidadOption(
+                modifier = Modifier.weight(1f),
+                titulo = "Colectivo",
+                descripcion = "Cada viajero compra su lugar",
+                selected = modalidad != "PRIVADA",
+                enabled = !locked,
+                onClick = { onSelect("COLECTIVA") }
+            )
+            ModalidadOption(
+                modifier = Modifier.weight(1f),
+                titulo = "Privado",
+                descripcion = "El viajero renta el servicio completo",
+                selected = modalidad == "PRIVADA",
+                enabled = !locked,
+                onClick = { onSelect("PRIVADA") }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ModalidadOption(
+    modifier: Modifier,
+    titulo: String,
+    descripcion: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = RoundedCornerShape(12.dp),
+        color = if (selected) Color(0xFFE7F1FF) else Color.Transparent,
+        border = androidx.compose.foundation.BorderStroke(
+            1.5.dp,
+            if (selected) MaterialTheme.colorScheme.primary else Color(0xFFE9ECEF)
+        ),
+        modifier = modifier
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                titulo,
+                fontWeight = FontWeight.Black,
+                fontSize = 13.sp,
+                color = if (selected) MaterialTheme.colorScheme.primary else Color.DarkGray
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(descripcion, fontSize = 10.sp, color = Color.Gray, lineHeight = 13.sp)
+        }
+    }
+}
+
+// Campos de tarifa privada + preview en vivo (spec §7.3): el prestador ve
+// ejemplos reales de lo que pagará el viajero según el tamaño del grupo.
+@Composable
+private fun CamposPrecioPrivado(
+    draft: com.mochilapp.mobile.ui.viewmodels.ServiceDraft,
+    isLodging: Boolean,
+    onDraftChange: (com.mochilapp.mobile.ui.viewmodels.ServiceDraft) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        OutlinedTextField(
+            value = draft.precioBase,
+            onValueChange = { if (it.all { c -> c.isDigit() || c == '.' }) onDraftChange(draft.copy(precioBase = it)) },
+            label = { Text("Tarifa base MXN (grupo completo)") },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null, tint = Color(0xFF2E7D32)) }
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedTextField(
+                value = draft.personasIncluidas,
+                onValueChange = { if (it.all { c -> c.isDigit() }) onDraftChange(draft.copy(personasIncluidas = it)) },
+                label = { Text("Personas incluidas") },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+            OutlinedTextField(
+                value = draft.precioPersonaExtra,
+                onValueChange = { if (it.all { c -> c.isDigit() || c == '.' }) onDraftChange(draft.copy(precioPersonaExtra = it)) },
+                label = { Text("$ por persona extra") },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+        }
+        if (!isLodging) {
+            OutlinedTextField(
+                value = draft.capacity,
+                onValueChange = { if (it.all { c -> c.isDigit() }) onDraftChange(draft.copy(capacity = it)) },
+                label = { Text("Capacidad máxima (personas)") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                leadingIcon = { Icon(Icons.Default.People, contentDescription = null, tint = Color.Gray) }
+            )
+        } else {
+            Text(
+                "La capacidad máxima la definen las camas configuradas más abajo.",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.Gray
+            )
+        }
+
+        // Preview en vivo: mismos números que verá el viajero
+        val base = draft.precioBase.toDoubleOrNull() ?: 0.0
+        val incluidas = draft.personasIncluidas.toIntOrNull() ?: 0
+        val extra = draft.precioPersonaExtra.toDoubleOrNull() ?: 0.0
+        val capacidad = if (isLodging) draft.rooms.sumOf { it.capacity.coerceAtLeast(0) }
+                        else draft.capacity.toIntOrNull() ?: 0
+        if (base > 0 && incluidas > 0) {
+            val pricing = Pricing.Privada(base, incluidas, extra, maxOf(capacidad, incluidas))
+            val ejemplos = listOf(incluidas, incluidas + 2, capacidad)
+                .filter { it >= incluidas && (capacidad <= 0 || it <= capacidad) }
+                .distinct()
+                .sorted()
+            Surface(
+                color = Color(0xFFD4EFDF),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        "ASÍ LO VERÁ EL VIAJERO",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color(0xFF1D8348),
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        ejemplos.joinToString("  ·  ") { n ->
+                            "$n personas → ${formatMxn(pricing.calcularTotal(n))}"
+                        },
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF145A32)
+                    )
                 }
             }
         }

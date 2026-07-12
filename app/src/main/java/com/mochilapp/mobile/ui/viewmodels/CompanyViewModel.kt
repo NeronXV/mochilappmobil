@@ -23,6 +23,13 @@ data class ServiceDraft(
     val type: CompanyType = CompanyType.HOTEL,
     val imageUri: Uri? = null,
     val capacity: String = "",
+    // Modalidad de venta (spec privada/colectiva). En PRIVADA, `capacity` es
+    // la capacidad máxima del grupo y `price` deja de ser campo de captura
+    // (se guarda precioBase como price legado para apps viejas).
+    val modalidad: String = "COLECTIVA",
+    val precioBase: String = "",
+    val personasIncluidas: String = "",
+    val precioPersonaExtra: String = "",
     val departureTimes: String = "",
     val checkIn: String = "",
     val checkOut: String = "",
@@ -215,15 +222,27 @@ class CompanyViewModel(
         }
     }
 
+    // Número de Firestore → texto de campo de captura ("8400", "850.5", "")
+    private fun numToInput(n: Double): String = when {
+        n <= 0.0 -> ""
+        n % 1.0 == 0.0 -> n.toInt().toString()
+        else -> n.toString()
+    }
+
     // Prepara el borrador con los datos de un servicio existente para editarlo
     fun startEditingService(service: ServiceFirestore) {
+        val esPrivado = service.modalidad == "PRIVADA"
         _serviceDraft.value = ServiceDraft(
             name = service.name,
             description = service.description,
-            price = if (service.price % 1.0 == 0.0) service.price.toInt().toString() else service.price.toString(),
+            price = numToInput(service.price),
             location = service.location,
             type = runCatching { CompanyType.valueOf(service.type) }.getOrDefault(CompanyType.HOTEL),
             capacity = if (service.capacity > 0) service.capacity.toString() else "",
+            modalidad = if (esPrivado) "PRIVADA" else "COLECTIVA",
+            precioBase = if (esPrivado) numToInput((service.pricing["precioBase"] as? Number)?.toDouble() ?: 0.0) else "",
+            personasIncluidas = if (esPrivado) numToInput((service.pricing["personasIncluidas"] as? Number)?.toDouble() ?: 0.0) else "",
+            precioPersonaExtra = if (esPrivado) numToInput((service.pricing["precioPersonaExtra"] as? Number)?.toDouble() ?: 0.0) else "",
             departureTimes = service.departureTimes.joinToString(", "),
             checkIn = service.checkIn,
             checkOut = service.checkOut,
