@@ -24,6 +24,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mochilapp.mobile.data.BookingFirestore
 import com.mochilapp.mobile.data.ServiceFirestore
+import com.mochilapp.mobile.data.esPrivado
+import com.mochilapp.mobile.data.holdsSeats
 import com.mochilapp.mobile.ui.viewmodels.CompanyViewModel
 import java.text.SimpleDateFormat
 import java.util.*
@@ -98,6 +100,11 @@ fun BoatTourModuleScreen(
     val pendingSlots = activeBookings.filter { it.status == "PENDING" }.sumOf { it.slots }
     val occupiedSlots = paidSlots + pendingSlots
     val availableSlots = capacity - occupiedSlots
+
+    // Servicio privado: la unidad reservable es la salida completa, no el
+    // asiento — el mapa de cubierta y los KPIs de cupos no aplican
+    val esPrivado = selectedService?.esPrivado == true
+    val reservaPrivada = if (esPrivado) activeBookings.firstOrNull { it.holdsSeats() } else null
 
     Scaffold(
         topBar = {
@@ -242,7 +249,48 @@ fun BoatTourModuleScreen(
                 }
             }
 
-            // KPIs de ocupación
+            // Servicio privado: estado de la salida completa
+            if (esPrivado) {
+                item {
+                    val ocupada = reservaPrivada != null
+                    Surface(
+                        color = if (ocupada) Color(0xFFFDE8EC) else Color(0xFFD4EFDF),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                if (ocupada) "SALIDA RESERVADA (unidad completa)" else "SALIDA LIBRE",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 1.sp,
+                                color = if (ocupada) SeatPaid else Color(0xFF1D8348)
+                            )
+                            reservaPrivada?.let { r ->
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    r.travelerName.ifEmpty { r.travelerEmail },
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 15.sp
+                                )
+                                Text(
+                                    "${maxOf(r.personas, r.slots)} persona(s) · ${formatMxn(r.totalPrice)} · " +
+                                        if (r.status == "PAID") "PAGADA" else "APARTADA (pendiente de pago)",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF6B2737)
+                                )
+                            } ?: Text(
+                                "Nadie ha reservado esta salida. Un solo grupo la toma completa.",
+                                fontSize = 12.sp,
+                                color = Color(0xFF1D8348)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // KPIs de ocupación (solo colectivos: en privado no hay cupos sueltos)
+            if (!esPrivado) {
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     BoatKpiCard(
@@ -335,6 +383,7 @@ fun BoatTourModuleScreen(
                     )
                 }
             }
+            } // fin bloque colectivo (KPIs, aforo, sobreventa, mapa de asientos)
 
             // Manifiesto de pasajeros
             item {

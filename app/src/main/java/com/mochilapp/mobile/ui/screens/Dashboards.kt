@@ -39,6 +39,7 @@ import com.mochilapp.mobile.data.CompanyType
 import com.mochilapp.mobile.data.ServiceFirestore
 import com.mochilapp.mobile.data.UserFirestore
 import com.mochilapp.mobile.data.esPrivado
+import com.mochilapp.mobile.data.holdsSeats
 import com.mochilapp.mobile.ui.theme.t
 import com.mochilapp.mobile.ui.viewmodels.AuthViewModel
 import com.mochilapp.mobile.ui.viewmodels.CompanyViewModel
@@ -1741,6 +1742,8 @@ fun CompanyDashboard(
 
                         // Progress Card
                         item {
+                            // Disponibilidad separada por modalidad (spec §9): asientos
+                            // de colectivos y salidas de privados NUNCA se suman.
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(20.dp),
@@ -1749,31 +1752,77 @@ fun CompanyDashboard(
                                     contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             ) {
-                                Column(modifier = Modifier.padding(20.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.AirlineSeatReclineExtra, contentDescription = null, tint = companyTeal, modifier = Modifier.size(20.dp))
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(t("company_free_slots"), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                    // Solo cuentan reservas de hoy que retienen cupo (los
+                                    // PENDING abandonados liberan al expirar su hold)
+                                    val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+                                    val activasHoy = bookings.filter { it.date == today && it.holdsSeats() }
+                                    val visibles = services.filter { it.isVisible }
+                                    val colectivos = visibles.filter { !it.esPrivado }
+                                    val privados = visibles.filter { it.esPrivado }
+
+                                    if (colectivos.isNotEmpty() || privados.isEmpty()) {
+                                        val totalCapacity = colectivos.sumOf { it.capacity }
+                                        val usedSlots = activasHoy
+                                            .filter { b -> colectivos.any { it.id == b.serviceId } }
+                                            .sumOf { it.slots }
+                                        val freeSlots = (totalCapacity - usedSlots).coerceAtLeast(0)
+                                        Column {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(Icons.Default.AirlineSeatReclineExtra, contentDescription = null, tint = companyTeal, modifier = Modifier.size(20.dp))
+                                                Spacer(Modifier.width(8.dp))
+                                                Text(t("company_free_slots"), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                                            }
+                                            Spacer(Modifier.height(12.dp))
+                                            Row(verticalAlignment = Alignment.Bottom) {
+                                                Text(
+                                                    text = if (totalCapacity > 0) freeSlots.toString() else "--",
+                                                    style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Black)
+                                                )
+                                                Spacer(Modifier.weight(1f))
+                                                LinearProgressIndicator(
+                                                    progress = { if (totalCapacity > 0) usedSlots.toFloat() / totalCapacity.toFloat() else 0f },
+                                                    modifier = Modifier.width(150.dp).height(8.dp).clip(RoundedCornerShape(4.dp)),
+                                                    color = companyTeal,
+                                                    trackColor = companyLightTeal
+                                                )
+                                            }
+                                        }
                                     }
-                                    Spacer(Modifier.height(16.dp))
-                                    Row(verticalAlignment = Alignment.Bottom) {
-                                        val totalCapacity = services.filter { it.isVisible }.sumOf { it.capacity }
-                                        // Solo cuentan las reservas de hoy: las históricas no ocupan cupo presente
-                                        val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
-                                        val usedSlots = bookings.filter { it.status != "CANCELLED" && it.date == today }.sumOf { it.slots }
-                                        val freeSlots = if (totalCapacity > 0) totalCapacity - usedSlots else 0
-                                        
-                                        Text(
-                                            text = if (totalCapacity > 0) freeSlots.toString() else "--", 
-                                            style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Black)
-                                        )
-                                        Spacer(Modifier.weight(1f))
-                                        LinearProgressIndicator(
-                                            progress = { if (totalCapacity > 0) usedSlots.toFloat() / totalCapacity.toFloat() else 0f },
-                                            modifier = Modifier.width(150.dp).height(8.dp).clip(RoundedCornerShape(4.dp)),
-                                            color = companyTeal,
-                                            trackColor = companyLightTeal
-                                        )
+
+                                    if (privados.isNotEmpty()) {
+                                        // Privados: la unidad es la SALIDA (horario), no el asiento
+                                        val salidasTotales = privados.sumOf { maxOf(1, it.departureTimes.size) }
+                                        val salidasTomadas = privados.sumOf { svc ->
+                                            val activas = activasHoy.filter { it.serviceId == svc.id }
+                                            if (svc.departureTimes.isEmpty()) {
+                                                if (activas.isNotEmpty()) 1 else 0
+                                            } else {
+                                                svc.departureTimes.count { t -> activas.any { it.departureTime == t } }
+                                            }
+                                        }
+                                        val salidasLibres = (salidasTotales - salidasTomadas).coerceAtLeast(0)
+                                        Column {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(Icons.Default.DirectionsBoat, contentDescription = null, tint = companyTeal, modifier = Modifier.size(20.dp))
+                                                Spacer(Modifier.width(8.dp))
+                                                Text(t("company_free_departures"), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                                            }
+                                            Spacer(Modifier.height(12.dp))
+                                            Row(verticalAlignment = Alignment.Bottom) {
+                                                Text(
+                                                    text = "$salidasLibres de $salidasTotales",
+                                                    style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Black)
+                                                )
+                                                Spacer(Modifier.weight(1f))
+                                                LinearProgressIndicator(
+                                                    progress = { if (salidasTotales > 0) salidasTomadas.toFloat() / salidasTotales.toFloat() else 0f },
+                                                    modifier = Modifier.width(150.dp).height(8.dp).clip(RoundedCornerShape(4.dp)),
+                                                    color = companyTeal,
+                                                    trackColor = companyLightTeal
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
