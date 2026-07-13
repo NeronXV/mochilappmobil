@@ -118,6 +118,13 @@ fun BookingFlowScreen(
             if (service?.departureTimes?.isNotEmpty() == true) it.departureTime == selectedTime
             else true
         }
+    // ¿La que bloquea es MI propia reserva pendiente de pago? Cambiar el
+    // mensaje: "reservada por otro viajero" era mentira y confundía
+    val myBookings by bookingViewModel.myBookings.collectAsState()
+    val salidaOcupadaPorMi = salidaOcupada && myBookings.any {
+        it.serviceId == serviceId && it.date == checkInText && it.holdsSeats() &&
+            (service?.departureTimes?.isEmpty() == true || it.departureTime == (selectedTime ?: ""))
+    }
 
     // Solo bloquea cuando hay aforo definido, fechas elegidas y no alcanza
     val capacityBlocks = if (esPrivado) salidaOcupada
@@ -218,7 +225,9 @@ fun BookingFlowScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        // weight(1f): sin él, el texto largo de privado empujaba el
+                        // botón "+" fuera de la pantalla (reporte de Pedro 12-jul)
+                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                             Text(t("people"), fontWeight = FontWeight.Bold)
                             Text(
                                 if (esPrivado) "Reservas el servicio completo para tu grupo"
@@ -362,8 +371,11 @@ fun BookingFlowScreen(
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text = if (salidaOcupada) "Esta salida ya fue reservada por otro viajero"
-                                       else "Esta salida está libre para tu grupo",
+                                text = when {
+                                    salidaOcupadaPorMi -> "Tienes una reserva pendiente de pago para esta salida. Págala o cancélala desde Mis Reservas."
+                                    salidaOcupada -> "Esta salida ya fue reservada por otro viajero"
+                                    else -> "Esta salida está libre para tu grupo"
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = if (salidaOcupada) Color.Red else Color.Gray
                             )

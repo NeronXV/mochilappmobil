@@ -230,6 +230,15 @@ class BookingViewModel(private val repository: FirebaseRepository, private val t
     // Check-in del viajero en el lugar ("Vive"). El gate de proximidad GPS lo
     // hace la pantalla; aquí solo registramos la visita. Una Cloud Function
     // acredita los MochiPuntos del Pasaporte.
+    // Cancelación del viajero (PENDING sin pagar): libera el cupo o la salida
+    // privada de inmediato en vez de esperar los 30 min del hold. Las reglas
+    // solo le permiten al viajero escribir status → CANCELLED, nada más.
+    fun cancelBooking(bookingId: String) {
+        viewModelScope.launch {
+            repository.updateBookingFields(bookingId, mapOf("status" to "CANCELLED"))
+        }
+    }
+
     fun travelerCheckIn(bookingId: String) {
         viewModelScope.launch {
             repository.updateBookingFields(

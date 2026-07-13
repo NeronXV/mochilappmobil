@@ -210,6 +210,37 @@ fun BookingDetailScreen(
                         Spacer(Modifier.width(12.dp))
                         Text("Pagar ahora · ${formatMxn(booking.totalPrice)}", fontWeight = FontWeight.Bold)
                     }
+                    Spacer(Modifier.height(8.dp))
+
+                    // Cancelar una PENDING sin pagar: libera el cupo (o la salida
+                    // privada completa) al instante, sin esperar el hold de 30 min
+                    var showCancelDialog by remember { mutableStateOf(false) }
+                    OutlinedButton(
+                        onClick = { showCancelDialog = true },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text("Cancelar reserva", color = Color(0xFFC0392B), fontWeight = FontWeight.Bold)
+                    }
+                    if (showCancelDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showCancelDialog = false },
+                            title = { Text("¿Cancelar esta reserva?", fontWeight = FontWeight.Black) },
+                            text = { Text("No se ha cobrado nada. El lugar quedará libre para otros viajeros.") },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        bookingViewModel.cancelBooking(booking.id)
+                                        showCancelDialog = false
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC0392B))
+                                ) { Text("Sí, cancelar") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showCancelDialog = false }) { Text("Volver") }
+                            }
+                        )
+                    }
                     Spacer(Modifier.height(16.dp))
                 }
 
